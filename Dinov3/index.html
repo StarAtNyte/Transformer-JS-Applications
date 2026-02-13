@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DinoLens - Visual Feature Explorer</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+            .grid {
+                display: grid;
+                gap: 24px;
+            }
+            @media (min-width: 900px) {
+                .grid {
+                    grid-template-columns: 320px 1fr;
+                }
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+            .dropzone {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 24px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .dropzone:hover,
+            .dropzone.dragover {
+                border-color: #6366f1;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.8rem;
+                margin-top: 4px;
+            }
+            #preview {
+                max-width: 100%;
+                max-height: 150px;
+                border-radius: 8px;
+                margin: 12px auto 0;
+                display: none;
+            }
+            .btn {
+                width: 100%;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 12px;
+            }
+            .btn-primary {
+                background: #6366f1;
+                color: white;
+            }
+            .btn-primary:hover:not(:disabled) {
+                background: #4f46e5;
+            }
+            .btn-primary:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 12px;
+                text-align: center;
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .progress {
+                margin-top: 12px;
+                display: none;
+            }
+            .progress-bar {
+                height: 4px;
+                background: #eee;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                width: 0%;
+                transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 4px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .model-status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            .model-status.loaded {
+                background: #f0fdf4;
+            }
+            .model-status.loading {
+                background: #fef3c7;
+            }
+            .model-status.error {
+                background: #fef2f2;
+            }
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b;
+                animation: pulse 1s infinite;
+            }
+            .model-status.error .dot {
+                background: #ef4444;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            .sample-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .sample-item {
+                aspect-ratio: 1;
+                border-radius: 6px;
+                overflow: hidden;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .sample-item:hover {
+                transform: scale(1.05);
+            }
+            .sample-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .controls-bar {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+                margin-bottom: 16px;
+                padding: 12px 16px;
+                background: #f1f5f9;
+                border-radius: 8px;
+            }
+            .control-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .control-group label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+            input[type="range"] {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100px;
+                height: 5px;
+                background: #ddd;
+                border-radius: 3px;
+                outline: none;
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 14px;
+                height: 14px;
+                background: #6366f1;
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .scale-value {
+                font-size: 0.8rem;
+                color: #888;
+                min-width: 36px;
+            }
+            .toggle-container {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .toggle-label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+            }
+            .toggle {
+                position: relative;
+                width: 40px;
+                height: 22px;
+                background: #ccc;
+                border-radius: 11px;
+                cursor: pointer;
+                transition: background 0.3s;
+            }
+            .toggle.active {
+                background: #6366f1;
+            }
+            .toggle .toggle-dot {
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: 18px;
+                height: 18px;
+                background: white;
+                border-radius: 50%;
+                transition: transform 0.3s;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+            .toggle.active .toggle-dot {
+                transform: translateX(18px);
+            }
+            .canvas-wrap {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+                flex-direction: column;
+            }
+            #imageCanvas {
+                display: none;
+                border-radius: 6px;
+                cursor: crosshair;
+                max-width: 100%;
+                height: auto;
+                margin: auto;
+            }
+            .viz-tip {
+                font-size: 0.78rem;
+                color: #888;
+                text-align: center;
+                margin-top: 10px;
+                line-height: 1.4;
+            }
+            .viz-tip strong {
+                color: #666;
+            }
+            .canvas-placeholder {
+                color: #aaa;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 48px;
+            }
+            .canvas-placeholder svg {
+                width: 64px;
+                height: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            .feature-display {
+                max-height: 120px;
+                overflow: auto;
+                background: #f8f9fa;
+                border-radius: 6px;
+                padding: 10px;
+                font-family: monospace;
+                font-size: 0.7rem;
+                color: #666;
+                word-break: break-all;
+            }
+            .feature-dim {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 6px;
+            }
+            .hidden {
+                display: none !important;
+            }
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #6366f1;
+                text-decoration: none;
+            }
+            footer a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>DinoLens</h1>
+                <p class="subtitle">
+                    Visual Feature Explorer powered by DINOv3 (Used in Similar
+                    Image Search)
+                </p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            Upload Image
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input
+                                type="file"
+                                id="imageInput"
+                                accept="image/*"
+                                hidden
+                            />
+                            <p>Drop image here or click</p>
+                            <p class="hint">PNG, JPG, WebP</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+
+                        <button
+                            id="extractBtn"
+                            class="btn btn-primary"
+                            disabled
+                        >
+                            Analyze Features
+                        </button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div
+                                    id="progressFill"
+                                    class="progress-fill"
+                                ></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                ></path>
+                            </svg>
+                            Sample Images
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+
+                    <div
+                        id="featurePanel"
+                        class="card hidden"
+                        style="margin-top: 16px"
+                    >
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                ></path>
+                            </svg>
+                            Feature Vector
+                        </h2>
+                        <div id="featureDisplay" class="feature-display"></div>
+                        <p id="featureDim" class="feature-dim"></p>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2 style="margin-bottom: 16px">
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                ></path>
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                ></path>
+                            </svg>
+                            Feature Visualization
+                        </h2>
+
+                        <div class="controls-bar">
+                            <div class="control-group">
+                                <label>Scale:</label>
+                                <input
+                                    id="scaleSlider"
+                                    type="range"
+                                    min="0.25"
+                                    max="2"
+                                    step="0.25"
+                                    value="1"
+                                />
+                                <span id="scaleValue" class="scale-value"
+                                    >1.00x</span
+                                >
+                            </div>
+                            <div class="toggle-container">
+                                <span class="toggle-label">Overlay</span>
+                                <div id="modeToggle" class="toggle active">
+                                    <div class="toggle-dot"></div>
+                                </div>
+                                <span class="toggle-label">Heatmap</span>
+                            </div>
+                        </div>
+
+                        <div class="canvas-wrap">
+                            <canvas id="imageCanvas"></canvas>
+                            <div
+                                id="canvasPlaceholder"
+                                class="canvas-placeholder"
+                            >
+                                <svg
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <p>
+                                    Upload or select an image, then click
+                                    "Analyze Features"
+                                </p>
+                            </div>
+                        </div>
+                        <p class="viz-tip">
+                            <strong>💡 Tip:</strong> After analyzing, hover over
+                            any patch in the image. Brighter regions indicate
+                            patches the model considers
+                            <strong>visually similar</strong> to the one under
+                            your cursor — revealing how DINOv3 groups
+                            semantically related parts (e.g., all fur, eyes, or
+                            background).
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>
+                    Powered by
+                    <a
+                        href="https://huggingface.co/onnx-community/dinov3-vits16-pretrain-lvd1689m-ONNX"
+                        target="_blank"
+                        >DINOv3-ONNX</a
+                    >
+                    &
+                    <a
+                        href="https://huggingface.co/docs/transformers.js"
+                        target="_blank"
+                        >Transformers.js</a
+                    >
+                </p>
+            </footer>
+        </div>
+
+        <script type="module">
+            // ── Inline Web Worker for model loading & inference ──
+            const workerCode = `
+                let pipeline, RawImage, matmul, env, extractor = null;
+
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    pipeline = T.pipeline; RawImage = T.RawImage; matmul = T.matmul; env = T.env;
+                    env.allowLocalModels = false;
+                }
+
+                const ready = init();
+
+                const MODEL_ID = "onnx-community/dinov3-vits16-pretrain-lvd1689m-ONNX";
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            let device = "wasm", dtype = "q8";
+                            try {
+                                if (self.navigator?.gpu) {
+                                    const adapter = await navigator.gpu.requestAdapter();
+                                    if (adapter) { device = "webgpu"; dtype = "q4"; }
+                                }
+                            } catch (err) {}
+                            self.postMessage({ id, type: "status", text: "Loading model (" + device.toUpperCase() + ")..." });
+                            extractor = await pipeline("image-feature-extraction", MODEL_ID, {
+                                device, dtype,
+                                progress_callback: (p) => {
+                                    if (p.status === "progress" && p.progress != null) {
+                                        self.postMessage({ id, type: "progress", percent: Math.round(p.progress) });
+                                    }
+                                }
+                            });
+                            extractor.processor.image_processor.do_resize = false;
+                            const patchSize = extractor.model.config.patch_size;
+                            self.postMessage({ id, type: "loaded", patchSize });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "extract") {
+                        try {
+                            const { pixels, width, height } = e.data;
+                            const img = new RawImage(new Uint8ClampedArray(pixels), width, height, 4);
+                            const features = await extractor(img, { pooling: "none" });
+                            const numReg = extractor.model.config.num_register_tokens ?? 0;
+                            const startIdx = 1 + numReg;
+                            const patchFeats = features.slice(null, [startIdx, null]);
+                            const normalizedFeatures = patchFeats.normalize(2, -1);
+                            const scores = await matmul(normalizedFeatures, normalizedFeatures.permute(0, 2, 1));
+                            const similarityScores = (await scores.tolist())[0];
+                            const numPatches = similarityScores.length;
+                            const featDim = features.dims[2];
+                            const displayVals = Array.from(patchFeats.data).slice(0, 30);
+                            self.postMessage({ id, type: "features", similarityScores, numPatches, featDim, displayVals });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+            const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+
+            let msgId = 0;
+            const pending = new Map();
+
+            function workerCall(msg) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id });
+                });
+            }
+
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") {
+                    modelStatusText.textContent = e.data.text;
+                    return;
+                }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            const SAMPLE_IMAGES = [
+                "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&q=80",
+                "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=200&q=80",
+                "https://images.unsplash.com/photo-1543852786-1cf6624b9987?w=200&q=80",
+                "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&q=80",
+                "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=200&q=80",
+                "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=200&q=80",
+            ];
+
+            let modelReady = false;
+            let patchSize = null;
+            let similarityScores = null;
+            let originalImage = null;
+            let currentImageUrl = null;
+            let isOverlayMode = true;
+            let imageScale = 1.0;
+            let lastHoverData = null;
+            let animationFrameId = null;
+            let lastMouseEvent = null;
+
+            const dropZone = document.getElementById("dropZone");
+            const imageInput = document.getElementById("imageInput");
+            const preview = document.getElementById("preview");
+            const extractBtn = document.getElementById("extractBtn");
+            const status = document.getElementById("status");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressLabel = document.getElementById("progressLabel");
+            const progressPercent = document.getElementById("progressPercent");
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const featurePanel = document.getElementById("featurePanel");
+            const featureDisplay = document.getElementById("featureDisplay");
+            const featureDim = document.getElementById("featureDim");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const imageCanvas = document.getElementById("imageCanvas");
+            const ctx = imageCanvas.getContext("2d", {
+                willReadFrequently: true,
+            });
+            const canvasPlaceholder =
+                document.getElementById("canvasPlaceholder");
+            const modeToggle = document.getElementById("modeToggle");
+            const scaleSlider = document.getElementById("scaleSlider");
+            const scaleValueEl = document.getElementById("scaleValue");
+
+            const isMobile =
+                /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                    navigator.userAgent,
+                );
+            const maxPixels = isMobile ? 524288 : 1048576;
+
+            function initSampleGallery() {
+                sampleGallery.innerHTML = SAMPLE_IMAGES.map(
+                    (url, i) => `
+                <div class="sample-item" data-index="${i}">
+                    <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                </div>
+            `,
+                ).join("");
+            }
+            initSampleGallery();
+
+            async function loadModel() {
+                try {
+                    progress.style.display = "block";
+                    progressLabel.textContent = "Downloading model...";
+                    const result = await workerCall({ type: "load" });
+                    patchSize = result.patchSize;
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "Model ready";
+                    extractBtn.disabled = false;
+                    progress.style.display = "none";
+                } catch (e) {
+                    console.error("Model load error:", e);
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+
+            dropZone.addEventListener("click", () => imageInput.click());
+            dropZone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropZone.classList.add("dragover");
+            });
+            dropZone.addEventListener("dragleave", () =>
+                dropZone.classList.remove("dragover"),
+            );
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/"))
+                    handleImageFile(file);
+            });
+            imageInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) handleImageFile(file);
+            });
+
+            function handleImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                    currentImageUrl = e.target.result;
+                    featurePanel.classList.add("hidden");
+                    similarityScores = null;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            sampleGallery.addEventListener("click", (e) => {
+                const item = e.target.closest(".sample-item");
+                if (item) {
+                    const url = SAMPLE_IMAGES[item.dataset.index];
+                    preview.src = url;
+                    preview.style.display = "block";
+                    currentImageUrl = url;
+                    featurePanel.classList.add("hidden");
+                    similarityScores = null;
+                }
+            });
+
+            scaleSlider.addEventListener("input", (e) => {
+                imageScale = parseFloat(e.target.value);
+                scaleValueEl.textContent = `${imageScale.toFixed(2)}x`;
+            });
+            scaleSlider.addEventListener("change", () => {
+                if (currentImageUrl) loadImageOntoCanvas(currentImageUrl);
+            });
+
+            modeToggle.addEventListener("click", () => {
+                isOverlayMode = !isOverlayMode;
+                modeToggle.classList.toggle("active", isOverlayMode);
+                if (lastHoverData) {
+                    drawHighlights(
+                        lastHoverData.queryIndex,
+                        lastHoverData.allPatches,
+                    );
+                } else {
+                    clearHighlights();
+                }
+            });
+
+            extractBtn.addEventListener("click", async () => {
+                if (!currentImageUrl || !modelReady) return;
+                extractBtn.disabled = true;
+                loadImageOntoCanvas(currentImageUrl);
+            });
+
+            function loadImageOntoCanvas(imageUrl) {
+                originalImage = new Image();
+                originalImage.crossOrigin = "anonymous";
+                originalImage.onload = async () => {
+                    if (!patchSize) {
+                        status.textContent = "Error: Model not ready.";
+                        extractBtn.disabled = false;
+                        return;
+                    }
+
+                    canvasPlaceholder.style.display = "none";
+                    imageCanvas.style.display = "block";
+
+                    let newW = originalImage.naturalWidth * imageScale;
+                    let newH = originalImage.naturalHeight * imageScale;
+                    const numPx = newW * newH;
+                    if (numPx > maxPixels) {
+                        const r = Math.sqrt(maxPixels / numPx);
+                        newW *= r;
+                        newH *= r;
+                    }
+
+                    const croppedW = Math.floor(newW / patchSize) * patchSize;
+                    const croppedH = Math.floor(newH / patchSize) * patchSize;
+
+                    if (croppedW < patchSize || croppedH < patchSize) {
+                        status.textContent = "Scaled image is too small.";
+                        extractBtn.disabled = false;
+                        return;
+                    }
+
+                    imageCanvas.width = croppedW;
+                    imageCanvas.height = croppedH;
+                    ctx.drawImage(originalImage, 0, 0, croppedW, croppedH);
+
+                    await processImage();
+                    extractBtn.disabled = false;
+                };
+                originalImage.onerror = () => {
+                    status.textContent = "Failed to load image.";
+                    extractBtn.disabled = false;
+                };
+                originalImage.src = imageUrl;
+            }
+
+            async function processImage() {
+                status.textContent = "Analyzing image...";
+                similarityScores = null;
+                lastHoverData = null;
+
+                try {
+                    const imageData = ctx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
+                    const result = await workerCall({
+                        type: "extract",
+                        pixels: imageData.data.buffer,
+                        width: imageCanvas.width,
+                        height: imageCanvas.height,
+                    });
+
+                    similarityScores = result.similarityScores;
+                    const numPatches = result.numPatches;
+                    const featDim = result.featDim;
+
+                    featurePanel.classList.remove("hidden");
+                    featureDim.textContent = `${numPatches} patches × ${featDim}D features`;
+
+                    featureDisplay.innerHTML =
+                        result.displayVals
+                            .map(
+                                (f) =>
+                                    `<span style="color: ${f > 0 ? "#22c55e" : "#ef4444"}">${f.toFixed(3)}</span>`,
+                            )
+                            .join(", ") + (featDim > 30 ? ", ..." : "");
+
+                    ctx.drawImage(
+                        originalImage,
+                        0,
+                        0,
+                        imageCanvas.width,
+                        imageCanvas.height,
+                    );
+
+                    status.textContent = `Analyzed ${numPatches} patches (${imageCanvas.width}×${imageCanvas.height}). Hover to explore features.`;
+                } catch (error) {
+                    status.textContent = "Error: " + error.message;
+                    console.error("Processing error:", error);
+                }
+            }
+
+            imageCanvas.addEventListener("mousemove", handleMouseMove);
+            imageCanvas.addEventListener("mouseleave", clearHighlights);
+            imageCanvas.addEventListener("touchmove", (e) => {
+                e.preventDefault();
+                if (e.touches.length > 0) handleMouseMove(e.touches[0]);
+            });
+            imageCanvas.addEventListener("touchend", clearHighlights);
+
+            function handleMouseMove(event) {
+                lastMouseEvent = event;
+                if (!animationFrameId) {
+                    animationFrameId = requestAnimationFrame(drawLoop);
+                }
+            }
+
+            function drawLoop() {
+                if (!lastMouseEvent || !similarityScores || !originalImage) {
+                    animationFrameId = null;
+                    return;
+                }
+
+                const event = lastMouseEvent;
+                const rect = imageCanvas.getBoundingClientRect();
+                const scaleX = imageCanvas.width / rect.width;
+                const scaleY = imageCanvas.height / rect.height;
+                const x = (event.clientX - rect.left) * scaleX;
+                const y = (event.clientY - rect.top) * scaleY;
+
+                if (
+                    x < 0 ||
+                    x >= imageCanvas.width ||
+                    y < 0 ||
+                    y >= imageCanvas.height
+                ) {
+                    animationFrameId = null;
+                    return;
+                }
+
+                const patchesPerRow = imageCanvas.width / patchSize;
+                const patchX = Math.floor(x / patchSize);
+                const patchY = Math.floor(y / patchSize);
+                const queryIndex = patchY * patchesPerRow + patchX;
+
+                if (
+                    queryIndex < 0 ||
+                    queryIndex >= similarityScores.length ||
+                    !similarityScores[queryIndex]
+                ) {
+                    animationFrameId = null;
+                    return;
+                }
+
+                const allPatches = Array.from(similarityScores[queryIndex]).map(
+                    (score, index) => ({ score, index }),
+                );
+                lastHoverData = { queryIndex, allPatches };
+                drawHighlights(queryIndex, allPatches);
+                animationFrameId = null;
+            }
+
+            const INFERNO_COLORMAP = [
+                [0.0, [0, 0, 4]],
+                [0.1, [39, 12, 69]],
+                [0.2, [84, 15, 104]],
+                [0.3, [128, 31, 103]],
+                [0.4, [170, 48, 88]],
+                [0.5, [209, 70, 68]],
+                [0.6, [240, 97, 47]],
+                [0.7, [253, 138, 28]],
+                [0.8, [252, 185, 26]],
+                [0.9, [240, 231, 56]],
+                [1.0, [252, 255, 160]],
+            ];
+
+            function getHeatmapColor(t) {
+                for (let i = 1; i < INFERNO_COLORMAP.length; i++) {
+                    const [t_prev, c_prev] = INFERNO_COLORMAP[i - 1];
+                    const [t_curr, c_curr] = INFERNO_COLORMAP[i];
+                    if (t <= t_curr) {
+                        const f = (t - t_prev) / (t_curr - t_prev);
+                        return `rgb(${Math.round(c_prev[0] + f * (c_curr[0] - c_prev[0]))},${Math.round(c_prev[1] + f * (c_curr[1] - c_prev[1]))},${Math.round(c_prev[2] + f * (c_curr[2] - c_prev[2]))})`;
+                    }
+                }
+                return `rgb(${INFERNO_COLORMAP[INFERNO_COLORMAP.length - 1][1].join(",")})`;
+            }
+
+            function drawHighlights(queryIndex, allPatches) {
+                const patchesPerRow = imageCanvas.width / patchSize;
+
+                if (isOverlayMode) {
+                    ctx.drawImage(
+                        originalImage,
+                        0,
+                        0,
+                        imageCanvas.width,
+                        imageCanvas.height,
+                    );
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                    ctx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+                } else {
+                    ctx.fillStyle = getHeatmapColor(0);
+                    ctx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+                }
+
+                if (allPatches.length > 0) {
+                    const scores = allPatches.map((p) => p.score);
+                    const minScore = Math.min(...scores);
+                    const maxScore = Math.max(...scores);
+                    const scoreRange = maxScore - minScore;
+
+                    for (const patch of allPatches) {
+                        if (patch.index === queryIndex) continue;
+                        const norm =
+                            scoreRange > 0.0001
+                                ? (patch.score - minScore) / scoreRange
+                                : 1;
+                        const py = Math.floor(patch.index / patchesPerRow);
+                        const px = patch.index % patchesPerRow;
+
+                        if (isOverlayMode) {
+                            const brightness = Math.pow(norm, 2) * 0.8;
+                            ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+                        } else {
+                            ctx.fillStyle = getHeatmapColor(norm);
+                        }
+                        ctx.fillRect(
+                            px * patchSize,
+                            py * patchSize,
+                            patchSize,
+                            patchSize,
+                        );
+                    }
+                }
+
+                const queryY = Math.floor(queryIndex / patchesPerRow);
+                const queryX = queryIndex % patchesPerRow;
+                ctx.strokeStyle = isOverlayMode
+                    ? "rgba(129, 188, 255, 0.9)"
+                    : "cyan";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(
+                    queryX * patchSize,
+                    queryY * patchSize,
+                    patchSize,
+                    patchSize,
+                );
+            }
+
+            function clearHighlights() {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                lastMouseEvent = null;
+                lastHoverData = null;
+                if (originalImage) {
+                    ctx.drawImage(
+                        originalImage,
+                        0,
+                        0,
+                        imageCanvas.width,
+                        imageCanvas.height,
+                    );
+                }
+            }
+        </script>
+    </body>
+</html>

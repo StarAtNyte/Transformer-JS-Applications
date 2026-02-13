@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DinoLens – Cross-Image Correspondence</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+
+            .status-bar {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                padding: 10px 16px;
+                background: white;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .status-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #f59e0b;
+                flex-shrink: 0;
+            }
+            .status-dot.ready {
+                background: #22c55e;
+            }
+            .status-dot.error {
+                background: #ef4444;
+            }
+            .status-dot.loading {
+                animation: pulse 1s infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            #statusText {
+                font-size: 0.85rem;
+                color: #666;
+            }
+            #spinner {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #eee;
+                border-top-color: #6366f1;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+                display: none;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .panels {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+            }
+            @media (max-width: 800px) {
+                .panels {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .panel {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+                overflow: hidden;
+            }
+            .panel-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px 16px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .panel-title {
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: #333;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .panel-badge {
+                font-size: 0.7rem;
+                padding: 2px 8px;
+                border-radius: 10px;
+                background: #6366f1;
+                color: white;
+                font-weight: 500;
+            }
+            .panel-badge.b {
+                background: #a78bfa;
+            }
+
+            .dropzone {
+                padding: 32px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .dropzone:hover,
+            .dropzone.dragover {
+                background: #f8f9fa;
+            }
+            .dropzone input {
+                display: none;
+            }
+            .dropzone svg {
+                width: 40px;
+                height: 40px;
+                color: #ccc;
+                margin-bottom: 10px;
+            }
+            .dropzone:hover svg {
+                color: #6366f1;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.85rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.75rem;
+                margin-top: 4px;
+            }
+            .dropzone .or-example {
+                margin-top: 8px;
+                font-size: 0.8rem;
+                color: #666;
+            }
+            .dropzone .example-link {
+                color: #6366f1;
+                cursor: pointer;
+                text-decoration: underline;
+                background: none;
+                border: none;
+                font-size: 0.8rem;
+            }
+            .dropzone .example-link:hover {
+                color: #4f46e5;
+            }
+
+            .canvas-area {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 280px;
+                padding: 8px;
+                flex-direction: column;
+                background: #f8f9fa;
+                border-top: 1px solid #e2e8f0;
+            }
+            .canvas-area canvas {
+                display: none;
+                border-radius: 6px;
+                cursor: crosshair;
+                max-width: 100%;
+                height: auto;
+                margin: auto;
+            }
+
+            .panel-footer {
+                padding: 8px 16px;
+                border-top: 1px solid #e2e8f0;
+                font-size: 0.75rem;
+                color: #999;
+                text-align: center;
+            }
+
+            .controls {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 20px;
+                flex-wrap: wrap;
+                padding: 12px 16px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+                margin-bottom: 20px;
+            }
+            .control-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .control-group label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+            input[type="range"] {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100px;
+                height: 5px;
+                background: #ddd;
+                border-radius: 3px;
+                outline: none;
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 14px;
+                height: 14px;
+                background: #6366f1;
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .scale-value {
+                font-size: 0.8rem;
+                color: #888;
+                min-width: 36px;
+            }
+            .btn {
+                padding: 8px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                background: #6366f1;
+                color: white;
+            }
+            .btn:hover:not(:disabled) {
+                background: #4f46e5;
+            }
+            .btn:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+            .tip {
+                text-align: center;
+                margin-top: 20px;
+                padding: 12px 16px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+                font-size: 0.78rem;
+                color: #888;
+                line-height: 1.4;
+            }
+            .tip strong {
+                color: #666;
+            }
+
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #6366f1;
+                text-decoration: none;
+            }
+            footer a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>DinoLens · Correspondence</h1>
+                <p class="subtitle">
+                    Hover on one image — see where the same feature lives in the
+                    other. Used in similar image search
+                </p>
+            </header>
+
+            <div class="status-bar">
+                <div id="statusDot" class="status-dot loading"></div>
+                <div id="spinner"></div>
+                <span id="statusText">Loading model…</span>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Scale:</label>
+                    <input
+                        id="scaleSlider"
+                        type="range"
+                        min="0.25"
+                        max="3"
+                        step="0.25"
+                        value="1"
+                    />
+                    <span id="scaleValue" class="scale-value">1.00x</span>
+                </div>
+                <button id="analyzeBtn" class="btn" disabled>
+                    Analyze Both
+                </button>
+            </div>
+
+            <div class="panels">
+                <div class="panel" id="panelA">
+                    <div class="panel-header">
+                        <span class="panel-title"
+                            ><span class="panel-badge">A</span> Source
+                            Image</span
+                        >
+                        <span
+                            id="infoA"
+                            class="panel-title"
+                            style="
+                                font-weight: 400;
+                                font-size: 0.75rem;
+                                color: #999;
+                            "
+                        ></span>
+                    </div>
+                    <div id="dropA" class="dropzone">
+                        <input type="file" id="fileA" accept="image/*" />
+                        <svg
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                        </svg>
+                        <p>Drop image or click to upload</p>
+                        <p class="hint">PNG, JPG, WebP</p>
+                        <p class="or-example">
+                            or
+                            <button class="example-link" data-panel="A">
+                                try an example
+                            </button>
+                        </p>
+                    </div>
+                    <div class="canvas-area" id="areaA">
+                        <canvas id="canvasA"></canvas>
+                    </div>
+                    <div class="panel-footer" id="footerA"></div>
+                </div>
+
+                <div class="panel" id="panelB">
+                    <div class="panel-header">
+                        <span class="panel-title"
+                            ><span class="panel-badge b">B</span> Target
+                            Image</span
+                        >
+                        <span
+                            id="infoB"
+                            class="panel-title"
+                            style="
+                                font-weight: 400;
+                                font-size: 0.75rem;
+                                color: #999;
+                            "
+                        ></span>
+                    </div>
+                    <div id="dropB" class="dropzone">
+                        <input type="file" id="fileB" accept="image/*" />
+                        <svg
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                        </svg>
+                        <p>Drop image or click to upload</p>
+                        <p class="hint">PNG, JPG, WebP</p>
+                        <p class="or-example">
+                            or
+                            <button class="example-link" data-panel="B">
+                                try an example
+                            </button>
+                        </p>
+                    </div>
+                    <div class="canvas-area" id="areaB">
+                        <canvas id="canvasB"></canvas>
+                    </div>
+                    <div class="panel-footer" id="footerB"></div>
+                </div>
+            </div>
+
+            <div class="tip">
+                <strong>💡 How it works:</strong> DINOv3 splits each image into
+                small patches and computes a feature vector for each. When you
+                hover a patch on one image, we find the patch in the other image
+                with the highest cosine similarity — revealing that DINOv3
+                understands semantic correspondence (e.g., "left eye" maps to
+                "left eye") without any labels.
+            </div>
+
+            <footer>
+                <p>
+                    Powered by
+                    <a
+                        href="https://huggingface.co/onnx-community/dinov3-vits16-pretrain-lvd1689m-ONNX"
+                        target="_blank"
+                        >DINOv3-ONNX</a
+                    >
+                    &amp;
+                    <a
+                        href="https://huggingface.co/docs/transformers.js"
+                        target="_blank"
+                        >Transformers.js</a
+                    >
+                </p>
+            </footer>
+        </div>
+
+        <script type="module">
+            // ── Inline Web Worker for model loading & inference (keeps main thread free) ──
+            const workerCode = `
+            let pipeline, RawImage, env, extractor = null, patchSize = null;
+
+            async function init() {
+                const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+                pipeline = T.pipeline; RawImage = T.RawImage; env = T.env;
+                env.allowLocalModels = false;
+            }
+
+            const ready = init();
+
+            const MODEL_ID = 'onnx-community/dinov3-vits16-pretrain-lvd1689m-ONNX';
+
+            async function extractOne(pixels, width, height) {
+                const img = new RawImage(new Uint8ClampedArray(pixels), width, height, 4);
+                const features = await extractor(img, { pooling: 'none' });
+                const numReg = extractor.model.config.num_register_tokens ?? 0;
+                const patchFeats = features.slice(null, [1 + numReg, null]);
+                const normalized = patchFeats.normalize(2, -1);
+                const dims = normalized.dims;
+                const data = new Float32Array(normalized.data);
+                return { data, numPatches: dims[1], featDim: dims[2] };
+            }
+
+            self.onmessage = async (e) => {
+                await ready;
+                const { type, id } = e.data;
+
+                if (type === 'load') {
+                    try {
+                        let device = 'wasm', dtype = 'q8';
+                        try {
+                            if (self.navigator?.gpu) {
+                                const adapter = await navigator.gpu.requestAdapter();
+                                if (adapter) { device = 'webgpu'; dtype = 'q4'; }
+                            }
+                        } catch (err) {}
+                        self.postMessage({ id, type: 'status', text: 'Loading model (' + device.toUpperCase() + ')…' });
+
+                        extractor = await pipeline('image-feature-extraction', MODEL_ID, { device, dtype });
+                        extractor.processor.image_processor.do_resize = false;
+                        patchSize = extractor.model.config.patch_size;
+                        self.postMessage({ id, type: 'loaded', patchSize });
+                    } catch (err) {
+                        self.postMessage({ id, type: 'error', message: err.message });
+                    }
+                    return;
+                }
+
+                if (type === 'extract_both') {
+                    try {
+                        const { a, b } = e.data;
+                        self.postMessage({ id, type: 'progress_step', step: 'A' });
+                        const rA = await extractOne(a.pixels, a.width, a.height);
+                        self.postMessage({ id, type: 'progress_step', step: 'B' });
+                        const rB = await extractOne(b.pixels, b.width, b.height);
+                        self.postMessage({
+                            id, type: 'features_both',
+                            a: { data: rA.data.buffer, numPatches: rA.numPatches, featDim: rA.featDim },
+                            b: { data: rB.data.buffer, numPatches: rB.numPatches, featDim: rB.featDim }
+                        }, [rA.data.buffer, rB.data.buffer]);
+                    } catch (err) {
+                        self.postMessage({ id, type: 'error', message: err.message });
+                    }
+                    return;
+                }
+            };
+        `;
+            const worker = new Worker(
+                URL.createObjectURL(new Blob([workerCode])),
+            );
+
+            let msgId = 0;
+            const pending = new Map();
+
+            function workerCall(msg, transfer = []) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id }, transfer);
+                });
+            }
+
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") {
+                    setStatus(e.data.text, "loading");
+                    return;
+                }
+                if (type === "progress_step") {
+                    setStatus(
+                        `Extracting features from ${e.data.step}…`,
+                        "loading",
+                    );
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            const EXAMPLE_A =
+                "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=500&fit=crop&q=80";
+            const EXAMPLE_B =
+                "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=500&h=500&fit=crop&q=80";
+
+            // DOM
+            const statusDot = document.getElementById("statusDot");
+            const statusText = document.getElementById("statusText");
+            const spinner = document.getElementById("spinner");
+            const analyzeBtn = document.getElementById("analyzeBtn");
+            const scaleSlider = document.getElementById("scaleSlider");
+            const scaleValueEl = document.getElementById("scaleValue");
+
+            const dropA = document.getElementById("dropA");
+            const dropB = document.getElementById("dropB");
+            const fileA = document.getElementById("fileA");
+            const fileB = document.getElementById("fileB");
+            const canvasA = document.getElementById("canvasA");
+            const canvasB = document.getElementById("canvasB");
+            const ctxA = canvasA.getContext("2d");
+            const ctxB = canvasB.getContext("2d");
+            const infoA = document.getElementById("infoA");
+            const infoB = document.getElementById("infoB");
+            const footerA = document.getElementById("footerA");
+            const footerB = document.getElementById("footerB");
+
+            // State
+            let modelReady = false;
+            let patchSize = null;
+            let imageScale = 1.0;
+            const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+            const maxPixels = isMobile ? 524288 : 1048576;
+
+            const images = {
+                A: {
+                    url: null,
+                    img: null,
+                    features: null,
+                    patchesPerRow: 0,
+                    patchesPerCol: 0,
+                    numPatches: 0,
+                },
+                B: {
+                    url: null,
+                    img: null,
+                    features: null,
+                    patchesPerRow: 0,
+                    patchesPerCol: 0,
+                    numPatches: 0,
+                },
+            };
+
+            let animationFrameId = null;
+            let lastMouseEvent = null;
+            let lastHoverSource = null;
+
+            function setStatus(text, state = "loading") {
+                statusText.textContent = text;
+                statusDot.className =
+                    "status-dot" +
+                    (state === "loading"
+                        ? " loading"
+                        : state === "ready"
+                          ? " ready"
+                          : state === "error"
+                            ? " error"
+                            : "");
+                spinner.style.display = state === "loading" ? "block" : "none";
+            }
+
+            // Model init via worker
+            async function initialize() {
+                setStatus("Loading model…", "loading");
+                try {
+                    const result = await workerCall({ type: "load" });
+                    patchSize = result.patchSize;
+                    modelReady = true;
+                    setStatus("Ready — upload two images", "ready");
+                    updateAnalyzeBtn();
+                } catch (e) {
+                    setStatus("Failed to load model", "error");
+                    console.error(e);
+                }
+            }
+
+            function updateAnalyzeBtn() {
+                analyzeBtn.disabled = !(
+                    modelReady &&
+                    images.A.url &&
+                    images.B.url
+                );
+            }
+
+            // Image loading (main thread — just drawing to canvas)
+            function loadImageToSide(side, url) {
+                images[side].url = url;
+                images[side].features = null;
+                const canvas = side === "A" ? canvasA : canvasB;
+                const ctx = side === "A" ? ctxA : ctxB;
+                const drop = side === "A" ? dropA : dropB;
+                const info = side === "A" ? infoA : infoB;
+                const footer = side === "A" ? footerA : footerB;
+
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                    images[side].img = img;
+                    drop.style.display = "none";
+
+                    let w = img.naturalWidth * imageScale;
+                    let h = img.naturalHeight * imageScale;
+                    const px = w * h;
+                    if (px > maxPixels) {
+                        const r = Math.sqrt(maxPixels / px);
+                        w *= r;
+                        h *= r;
+                    }
+                    const cw = Math.floor(w / patchSize) * patchSize;
+                    const ch = Math.floor(h / patchSize) * patchSize;
+                    if (cw < patchSize || ch < patchSize) {
+                        footer.textContent = "Image too small";
+                        return;
+                    }
+
+                    canvas.width = cw;
+                    canvas.height = ch;
+                    canvas.style.display = "block";
+                    ctx.drawImage(img, 0, 0, cw, ch);
+                    info.textContent = `${cw}×${ch}`;
+
+                    images[side].patchesPerRow = cw / patchSize;
+                    images[side].patchesPerCol = ch / patchSize;
+                    images[side].numPatches =
+                        images[side].patchesPerRow * images[side].patchesPerCol;
+                    footer.textContent = `${images[side].numPatches} patches`;
+
+                    updateAnalyzeBtn();
+                };
+                img.onerror = () => {
+                    footer.textContent = "Failed to load";
+                };
+                img.src = url;
+            }
+
+            // Analyze both via single batched worker call
+            analyzeBtn.addEventListener("click", async () => {
+                if (!modelReady || !images.A.url || !images.B.url) return;
+                analyzeBtn.disabled = true;
+                const t0 = performance.now();
+                try {
+                    reloadCanvas("A");
+                    reloadCanvas("B");
+                    setStatus("Extracting features…", "loading");
+
+                    const pixA = ctxA.getImageData(
+                        0,
+                        0,
+                        canvasA.width,
+                        canvasA.height,
+                    );
+                    const pixB = ctxB.getImageData(
+                        0,
+                        0,
+                        canvasB.width,
+                        canvasB.height,
+                    );
+
+                    const result = await workerCall(
+                        {
+                            type: "extract_both",
+                            a: {
+                                pixels: pixA.data.buffer,
+                                width: canvasA.width,
+                                height: canvasA.height,
+                            },
+                            b: {
+                                pixels: pixB.data.buffer,
+                                width: canvasB.width,
+                                height: canvasB.height,
+                            },
+                        },
+                        [pixA.data.buffer, pixB.data.buffer],
+                    );
+
+                    images.A.features = {
+                        data: new Float32Array(result.a.data),
+                        numPatches: result.a.numPatches,
+                        featDim: result.a.featDim,
+                    };
+                    images.B.features = {
+                        data: new Float32Array(result.b.data),
+                        numPatches: result.b.numPatches,
+                        featDim: result.b.featDim,
+                    };
+
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(
+                        1,
+                    );
+                    setStatus(
+                        `Done in ${elapsed}s! Hover on either image to see correspondences.`,
+                        "ready",
+                    );
+                } catch (e) {
+                    setStatus("Error: " + e.message, "error");
+                    console.error(e);
+                }
+                analyzeBtn.disabled = false;
+            });
+
+            function reloadCanvas(side) {
+                const img = images[side].img;
+                const canvas = side === "A" ? canvasA : canvasB;
+                const ctx = side === "A" ? ctxA : ctxB;
+                const info = side === "A" ? infoA : infoB;
+                const footer = side === "A" ? footerA : footerB;
+
+                let w = img.naturalWidth * imageScale;
+                let h = img.naturalHeight * imageScale;
+                const px = w * h;
+                if (px > maxPixels) {
+                    const r = Math.sqrt(maxPixels / px);
+                    w *= r;
+                    h *= r;
+                }
+                const cw = Math.floor(w / patchSize) * patchSize;
+                const ch = Math.floor(h / patchSize) * patchSize;
+
+                canvas.width = cw;
+                canvas.height = ch;
+                canvas.style.display = "block";
+                ctx.drawImage(img, 0, 0, cw, ch);
+                info.textContent = `${cw}×${ch}`;
+                images[side].patchesPerRow = cw / patchSize;
+                images[side].patchesPerCol = ch / patchSize;
+                images[side].numPatches =
+                    images[side].patchesPerRow * images[side].patchesPerCol;
+                footer.textContent = `${images[side].numPatches} patches`;
+            }
+
+            // Cosine similarity (main thread — fast, just dot products on cached features)
+            function findBestMatch(queryVec, targetFeats) {
+                const { data, numPatches, featDim } = targetFeats;
+                let bestIdx = 0,
+                    bestScore = -Infinity;
+                const scores = new Float32Array(numPatches);
+                for (let i = 0; i < numPatches; i++) {
+                    const off = i * featDim;
+                    let dot = 0;
+                    for (let j = 0; j < featDim; j++) {
+                        dot += queryVec[j] * data[off + j];
+                    }
+                    scores[i] = dot;
+                    if (dot > bestScore) {
+                        bestScore = dot;
+                        bestIdx = i;
+                    }
+                }
+                return { bestIdx, bestScore, scores };
+            }
+
+            // Hover handling
+            function onMouseMove(source, event) {
+                lastMouseEvent = event;
+                lastHoverSource = source;
+                if (!animationFrameId) {
+                    animationFrameId = requestAnimationFrame(drawLoop);
+                }
+            }
+
+            canvasA.addEventListener("mousemove", (e) => onMouseMove("A", e));
+            canvasB.addEventListener("mousemove", (e) => onMouseMove("B", e));
+            canvasA.addEventListener("mouseleave", clearAll);
+            canvasB.addEventListener("mouseleave", clearAll);
+            canvasA.addEventListener("touchmove", (e) => {
+                e.preventDefault();
+                if (e.touches.length) onMouseMove("A", e.touches[0]);
+            });
+            canvasB.addEventListener("touchmove", (e) => {
+                e.preventDefault();
+                if (e.touches.length) onMouseMove("B", e.touches[0]);
+            });
+            canvasA.addEventListener("touchend", clearAll);
+            canvasB.addEventListener("touchend", clearAll);
+
+            function drawLoop() {
+                animationFrameId = null;
+                if (!lastMouseEvent || !lastHoverSource) return;
+                const src = lastHoverSource;
+                const tgt = src === "A" ? "B" : "A";
+
+                if (!images[src].features || !images[tgt].features) return;
+
+                const srcCanvas = src === "A" ? canvasA : canvasB;
+                const tgtCanvas = tgt === "A" ? canvasA : canvasB;
+                const srcCtx = src === "A" ? ctxA : ctxB;
+                const tgtCtx = tgt === "A" ? ctxA : ctxB;
+
+                const rect = srcCanvas.getBoundingClientRect();
+                const sx = srcCanvas.width / rect.width;
+                const sy = srcCanvas.height / rect.height;
+                const x = (lastMouseEvent.clientX - rect.left) * sx;
+                const y = (lastMouseEvent.clientY - rect.top) * sy;
+
+                if (
+                    x < 0 ||
+                    x >= srcCanvas.width ||
+                    y < 0 ||
+                    y >= srcCanvas.height
+                )
+                    return;
+
+                const patchX = Math.floor(x / patchSize);
+                const patchY = Math.floor(y / patchSize);
+                const queryIdx = patchY * images[src].patchesPerRow + patchX;
+
+                if (queryIdx < 0 || queryIdx >= images[src].numPatches) return;
+
+                const { data: srcData, featDim } = images[src].features;
+                const queryVec = srcData.subarray(
+                    queryIdx * featDim,
+                    (queryIdx + 1) * featDim,
+                );
+
+                const { bestIdx, scores } = findBestMatch(
+                    queryVec,
+                    images[tgt].features,
+                );
+
+                // Draw source: original + highlight hovered patch
+                srcCtx.drawImage(
+                    images[src].img,
+                    0,
+                    0,
+                    srcCanvas.width,
+                    srcCanvas.height,
+                );
+                srcCtx.strokeStyle = "#6366f1";
+                srcCtx.lineWidth = 3;
+                srcCtx.strokeRect(
+                    patchX * patchSize,
+                    patchY * patchSize,
+                    patchSize,
+                    patchSize,
+                );
+
+                // Draw target: dim + heatmap + highlight best match
+                tgtCtx.drawImage(
+                    images[tgt].img,
+                    0,
+                    0,
+                    tgtCanvas.width,
+                    tgtCanvas.height,
+                );
+                tgtCtx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                tgtCtx.fillRect(0, 0, tgtCanvas.width, tgtCanvas.height);
+
+                let minS = Infinity,
+                    maxS = -Infinity;
+                for (let i = 0; i < scores.length; i++) {
+                    if (scores[i] < minS) minS = scores[i];
+                    if (scores[i] > maxS) maxS = scores[i];
+                }
+                const range = maxS - minS;
+
+                const tgtPPR = images[tgt].patchesPerRow;
+                for (let i = 0; i < scores.length; i++) {
+                    const norm =
+                        range > 0.0001 ? (scores[i] - minS) / range : 1;
+                    const brightness = Math.pow(norm, 3) * 0.85;
+                    const py = Math.floor(i / tgtPPR);
+                    const px = i % tgtPPR;
+                    tgtCtx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+                    tgtCtx.fillRect(
+                        px * patchSize,
+                        py * patchSize,
+                        patchSize,
+                        patchSize,
+                    );
+                }
+
+                const bestPY = Math.floor(bestIdx / tgtPPR);
+                const bestPX = bestIdx % tgtPPR;
+                tgtCtx.strokeStyle = "#f472b6";
+                tgtCtx.lineWidth = 3;
+                tgtCtx.strokeRect(
+                    bestPX * patchSize,
+                    bestPY * patchSize,
+                    patchSize,
+                    patchSize,
+                );
+
+                const srcFooter = src === "A" ? footerA : footerB;
+                const tgtFooter = tgt === "A" ? footerA : footerB;
+                const similarity = (scores[bestIdx] * 100).toFixed(1);
+                srcFooter.textContent = `Query patch (${patchX}, ${patchY})`;
+                tgtFooter.textContent = `Best match (${bestPX}, ${bestPY}) · ${similarity}% similarity`;
+            }
+
+            function clearAll() {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                lastMouseEvent = null;
+                lastHoverSource = null;
+                if (images.A.img)
+                    ctxA.drawImage(
+                        images.A.img,
+                        0,
+                        0,
+                        canvasA.width,
+                        canvasA.height,
+                    );
+                if (images.B.img)
+                    ctxB.drawImage(
+                        images.B.img,
+                        0,
+                        0,
+                        canvasB.width,
+                        canvasB.height,
+                    );
+                if (images.A.features)
+                    footerA.textContent = `${images.A.numPatches} patches`;
+                if (images.B.features)
+                    footerB.textContent = `${images.B.numPatches} patches`;
+            }
+
+            // File / drop / example handlers
+            function setupPanel(side, dropEl, fileEl) {
+                dropEl.addEventListener("click", (e) => {
+                    if (e.target.classList.contains("example-link")) return;
+                    fileEl.click();
+                });
+                fileEl.addEventListener("change", (e) => {
+                    const f = e.target.files[0];
+                    if (f) loadImageToSide(side, URL.createObjectURL(f));
+                });
+                dropEl.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    dropEl.classList.add("dragover");
+                });
+                dropEl.addEventListener("dragleave", () =>
+                    dropEl.classList.remove("dragover"),
+                );
+                dropEl.addEventListener("drop", (e) => {
+                    e.preventDefault();
+                    dropEl.classList.remove("dragover");
+                    const f = e.dataTransfer.files[0];
+                    if (f && f.type.startsWith("image/"))
+                        loadImageToSide(side, URL.createObjectURL(f));
+                });
+            }
+            setupPanel("A", dropA, fileA);
+            setupPanel("B", dropB, fileB);
+
+            document.querySelectorAll(".example-link").forEach((btn) => {
+                btn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const side = btn.dataset.panel;
+                    const url = side === "A" ? EXAMPLE_A : EXAMPLE_B;
+                    setStatus(`Loading example for ${side}…`, "loading");
+                    try {
+                        const res = await fetch(url);
+                        const blob = await res.blob();
+                        loadImageToSide(side, URL.createObjectURL(blob));
+                        setStatus("Ready — upload two images", "ready");
+                    } catch (err) {
+                        setStatus("Failed to load example", "error");
+                    }
+                });
+            });
+
+            scaleSlider.addEventListener("input", (e) => {
+                imageScale = parseFloat(e.target.value);
+                scaleValueEl.textContent = `${imageScale.toFixed(2)}x`;
+            });
+            scaleSlider.addEventListener("change", () => {
+                if (images.A.url && images.A.img) {
+                    reloadCanvas("A");
+                    images.A.features = null;
+                }
+                if (images.B.url && images.B.img) {
+                    reloadCanvas("B");
+                    images.B.features = null;
+                }
+                updateAnalyzeBtn();
+            });
+
+            initialize();
+        </script>
+    </body>
+</html>
