@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DepthLens - Monocular Depth Estimation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 32px; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .grid { display: grid; gap: 24px; }
+        @media (min-width: 900px) {
+            .grid { grid-template-columns: 320px 1fr; }
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .icon { width: 20px; height: 20px; }
+        .dropzone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+        .dropzone p { color: #666; font-size: 0.9rem; }
+        .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+        #preview {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            margin: 12px auto 0;
+            display: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 12px;
+        }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+        .progress { margin-top: 12px; display: none; }
+        .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .model-status.loaded { background: #f0fdf4; }
+        .model-status.loading { background: #fef3c7; }
+        .model-status.error { background: #fef2f2; }
+        .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .model-status.loading .dot {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        .model-status.error .dot { background: #ef4444; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .sample-item {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .sample-item:hover { transform: scale(1.05); }
+        .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-group label {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #6366f1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .scale-value { font-size: 0.8rem; color: #888; min-width: 36px; }
+        select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+        .canvas-wrap {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            flex-direction: column;
+        }
+        .canvas-pair {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+        .canvas-pair canvas {
+            display: none;
+            border-radius: 6px;
+            max-width: 100%;
+            height: auto;
+        }
+        .canvas-pair.side-by-side canvas {
+            max-width: calc(50% - 4px);
+        }
+        .canvas-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-align: center;
+            margin-top: 4px;
+        }
+        .canvas-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .canvas-placeholder {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 48px;
+        }
+        .canvas-placeholder svg {
+            width: 64px; height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .depth-info {
+            font-size: 0.78rem;
+            color: #888;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.4;
+            min-height: 1.4em;
+        }
+        .estimation-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .canvas-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-secondary:disabled { background: #f1f5f9; color: #999; cursor: not-allowed; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .modal-image {
+            max-width: 100%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
+        .modal-image.zoomed {
+            cursor: zoom-out;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        .modal-controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .modal-close:hover { opacity: 0.7; }
+        .hidden { display: none !important; }
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+        footer a { color: #6366f1; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DepthLens</h1>
+            <p class="subtitle">Monocular depth estimation in the browser</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status loading">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Loading model...</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Upload Image
+                    </h2>
+
+                    <div id="dropZone" class="dropzone">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <p>Drop image here or click</p>
+                        <p class="hint">PNG, JPG, WebP</p>
+                        <img id="preview" alt="Preview">
+                    </div>
+
+                    <button id="extractBtn" class="btn btn-primary" disabled>Estimate Depth</button>
+
+                    <div id="status" class="status"></div>
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Loading...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                        </svg>
+                        Sample Images
+                    </h2>
+                    <div id="sampleGallery" class="sample-grid"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2 style="margin-bottom: 16px">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                        </svg>
+                        Depth Map
+                    </h2>
+
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <label>Colormap:</label>
+                            <select id="colormapSelect">
+                                <option value="inferno">Inferno</option>
+                                <option value="viridis">Viridis</option>
+                                <option value="grayscale">Grayscale</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Scale:</label>
+                            <input id="scaleSlider" type="range" min="0.25" max="2" step="0.25" value="1">
+                            <span id="scaleValue" class="scale-value">1.00x</span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrap">
+                        <div id="estimationSpinner" class="estimation-spinner">
+                            <div class="spinner"></div>
+                            <p>Estimating depth...</p>
+                        </div>
+                        <div id="canvasPair" class="canvas-pair side-by-side">
+                            <div class="canvas-col">
+                                <canvas id="origCanvas"></canvas>
+                                <span class="canvas-label">Original</span>
+                            </div>
+                            <div class="canvas-col">
+                                <canvas id="depthCanvas"></canvas>
+                                <span class="canvas-label">Depth</span>
+                            </div>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p>Upload or select an image, then click "Estimate Depth"</p>
+                        </div>
+                    </div>
+                    <div id="canvasActions" class="canvas-actions hidden">
+                        <button id="downloadOrigBtn" class="btn-secondary">Download Original</button>
+                        <button id="downloadDepthBtn" class="btn-secondary">Download Depth</button>
+                        <button id="viewOrigBtn" class="btn-secondary">View Original</button>
+                        <button id="viewDepthBtn" class="btn-secondary">View Depth</button>
+                    </div>
+                    <p id="depthInfo" class="depth-info"></p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://huggingface.co/onnx-community/depth-anything-v2-small" target="_blank">Depth Anything v2</a>
+                &
+                <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <img id="modalImage" class="modal-image" alt="Full size image">
+            <div class="modal-controls">
+                <button id="modalDownloadBtn" class="btn-secondary">Download</button>
+                <button id="modalCloseBtn" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const workerCode = `
+            let pipeline, RawImage, env, estimator = null;
+
+            async function init() {
+                const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                pipeline = T.pipeline; RawImage = T.RawImage; env = T.env;
+                env.allowLocalModels = false;
+            }
+
+            const ready = init();
+
+            const MODEL_ID = "onnx-community/depth-anything-v2-small";
+
+            self.onmessage = async (e) => {
+                await ready;
+                const { type, id } = e.data;
+
+                if (type === "load") {
+                    try {
+                        let device = "wasm", dtype = "fp32";
+                        try {
+                            if (self.navigator?.gpu) {
+                                const adapter = await navigator.gpu.requestAdapter();
+                                if (adapter) { device = "webgpu"; }
+                            }
+                        } catch (err) {}
+                        self.postMessage({ id, type: "status", text: "Loading model (" + device.toUpperCase() + ")..." });
+                        estimator = await pipeline("depth-estimation", MODEL_ID, {
+                            device, dtype,
+                            progress_callback: (p) => {
+                                if (p.status === "progress" && p.progress != null) {
+                                    self.postMessage({ id, type: "progress", percent: Math.round(p.progress) });
+                                }
+                            }
+                        });
+                        self.postMessage({ id, type: "loaded" });
+                    } catch (err) {
+                        self.postMessage({ id, type: "error", message: err.message });
+                    }
+                    return;
+                }
+
+                if (type === "estimate") {
+                    try {
+                        const { pixels, width, height } = e.data;
+                        const img = new RawImage(new Uint8ClampedArray(pixels), width, height, 4);
+                        const result = await estimator(img);
+                        const depthData = result.depth.data.buffer;
+                        const depthW = result.depth.width;
+                        const depthH = result.depth.height;
+                        const rawDepth = result.predicted_depth.data.buffer;
+                        const rawW = result.predicted_depth.dims[result.predicted_depth.dims.length - 1];
+                        const rawH = result.predicted_depth.dims[result.predicted_depth.dims.length - 2];
+                        self.postMessage(
+                            { id, type: "depth", depthData, depthW, depthH, rawDepth, rawW, rawH },
+                            [depthData, rawDepth]
+                        );
+                    } catch (err) {
+                        self.postMessage({ id, type: "error", message: err.message });
+                    }
+                    return;
+                }
+            };
+        `;
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+
+        let msgId = 0;
+        const pending = new Map();
+
+        function workerCall(msg) {
+            return new Promise((resolve, reject) => {
+                const id = ++msgId;
+                pending.set(id, { resolve, reject });
+                worker.postMessage({ ...msg, id });
+            });
+        }
+
+        worker.onmessage = (e) => {
+            const { id, type } = e.data;
+            if (type === 'status') { modelStatusText.textContent = e.data.text; return; }
+            if (type === 'progress') {
+                progressFill.style.width = `${e.data.percent}%`;
+                progressPercent.textContent = `${e.data.percent}%`;
+                return;
+            }
+            const p = pending.get(id);
+            if (!p) return;
+            pending.delete(id);
+            if (type === 'error') p.reject(new Error(e.data.message));
+            else p.resolve(e.data);
+        };
+
+        const SAMPLE_IMAGES = [
+            'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=500&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=500&h=500&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=500&h=500&fit=crop&q=80',
+        ];
+
+        // Colormaps
+        const INFERNO = [[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[250,193,39],[252,255,164]];
+        const VIRIDIS = [[68,1,84],[72,36,117],[65,68,135],[53,95,141],[33,145,140],[94,201,98],[253,231,37]];
+
+        function interpolateColormap(map, t) {
+            t = Math.max(0, Math.min(1, t));
+            const idx = t * (map.length - 1);
+            const lo = Math.floor(idx);
+            const hi = Math.min(lo + 1, map.length - 1);
+            const f = idx - lo;
+            return [
+                Math.round(map[lo][0] + (map[hi][0] - map[lo][0]) * f),
+                Math.round(map[lo][1] + (map[hi][1] - map[lo][1]) * f),
+                Math.round(map[lo][2] + (map[hi][2] - map[lo][2]) * f),
+            ];
+        }
+
+        function applyColormap(value, colormap) {
+            const t = value / 255;
+            if (colormap === 'grayscale') return [value, value, value];
+            if (colormap === 'viridis') return interpolateColormap(VIRIDIS, t);
+            return interpolateColormap(INFERNO, t);
+        }
+
+        let modelReady = false;
+        let currentImageUrl = null;
+        let originalImage = null;
+        let depthGrayscale = null; // Uint8Array, 1 channel
+        let rawDepthData = null;   // Float32Array
+        let depthW = 0, depthH = 0;
+        let rawW = 0, rawH = 0;
+        let imageScale = 1.0;
+
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const extractBtn = document.getElementById('extractBtn');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progressFill');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressPercent = document.getElementById('progressPercent');
+        const modelStatus = document.getElementById('modelStatus');
+        const modelStatusText = document.getElementById('modelStatusText');
+        const sampleGallery = document.getElementById('sampleGallery');
+        const origCanvas = document.getElementById('origCanvas');
+        const depthCanvas = document.getElementById('depthCanvas');
+        const origCtx = origCanvas.getContext('2d');
+        const depthCtx = depthCanvas.getContext('2d');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const colormapSelect = document.getElementById('colormapSelect');
+        const scaleSlider = document.getElementById('scaleSlider');
+        const scaleValueEl = document.getElementById('scaleValue');
+        const depthInfo = document.getElementById('depthInfo');
+        const canvasActions = document.getElementById('canvasActions');
+        const downloadOrigBtn = document.getElementById('downloadOrigBtn');
+        const downloadDepthBtn = document.getElementById('downloadDepthBtn');
+        const viewOrigBtn = document.getElementById('viewOrigBtn');
+        const viewDepthBtn = document.getElementById('viewDepthBtn');
+        const estimationSpinner = document.getElementById('estimationSpinner');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const modalClose = document.querySelector('.modal-close');
+
+        const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxPixels = isMobile ? 524288 : 1048576;
+
+        function initSampleGallery() {
+            sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) => `
+                <div class="sample-item" data-index="${i}">
+                    <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                </div>
+            `).join('');
+        }
+        initSampleGallery();
+
+        async function loadModel() {
+            try {
+                progress.style.display = 'block';
+                progressLabel.textContent = 'Downloading model...';
+                await workerCall({ type: 'load' });
+                modelReady = true;
+                modelStatus.className = 'model-status loaded';
+                modelStatusText.textContent = 'Model ready';
+                extractBtn.disabled = false;
+                progress.style.display = 'none';
+            } catch (e) {
+                console.error('Model load error:', e);
+                modelStatus.className = 'model-status error';
+                modelStatusText.textContent = 'Failed to load model';
+                progress.style.display = 'none';
+            }
+        }
+        loadModel();
+
+        dropZone.addEventListener('click', () => imageInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleImageFile(file);
+        });
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleImageFile(file);
+        });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                currentImageUrl = e.target.result;
+                depthGrayscale = null;
+                rawDepthData = null;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        sampleGallery.addEventListener('click', (e) => {
+            const item = e.target.closest('.sample-item');
+            if (item) {
+                const url = SAMPLE_IMAGES[item.dataset.index];
+                preview.src = url;
+                preview.style.display = 'block';
+                currentImageUrl = url;
+                depthGrayscale = null;
+                rawDepthData = null;
+            }
+        });
+
+        scaleSlider.addEventListener('input', (e) => {
+            imageScale = parseFloat(e.target.value);
+            scaleValueEl.textContent = `${imageScale.toFixed(2)}x`;
+        });
+
+        colormapSelect.addEventListener('change', () => {
+            if (depthGrayscale) renderDepthMap();
+        });
+
+        // Modal functionality
+        function openModal(canvas, filename) {
+            const dataUrl = canvas.toDataURL('image/png');
+            modalImage.src = dataUrl;
+            modalImage.classList.remove('zoomed');
+            modalDownloadBtn.onclick = () => downloadImage(dataUrl, filename);
+            imageModal.classList.add('open');
+        }
+
+        function closeModal() {
+            imageModal.classList.remove('open');
+        }
+
+        modalImage.addEventListener('click', () => {
+            modalImage.classList.toggle('zoomed');
+        });
+
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalClose.addEventListener('click', closeModal);
+
+        imageModal.addEventListener('click', (e) => {
+            if (e.target === imageModal) closeModal();
+        });
+
+        // Download functionality
+        function downloadImage(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        downloadOrigBtn.addEventListener('click', () => {
+            const timestamp = new Date().toISOString().slice(0, 10);
+            downloadImage(origCanvas.toDataURL('image/png'), `depth-original-${timestamp}.png`);
+        });
+
+        downloadDepthBtn.addEventListener('click', () => {
+            const timestamp = new Date().toISOString().slice(0, 10);
+            downloadImage(depthCanvas.toDataURL('image/png'), `depth-map-${timestamp}.png`);
+        });
+
+        viewOrigBtn.addEventListener('click', () => {
+            openModal(origCanvas, 'original.png');
+        });
+
+        viewDepthBtn.addEventListener('click', () => {
+            openModal(depthCanvas, 'depth.png');
+        });
+
+        extractBtn.addEventListener('click', async () => {
+            if (!modelReady || !currentImageUrl) return;
+            extractBtn.disabled = true;
+            status.textContent = 'Preparing image...';
+            canvasActions.classList.add('hidden');
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+                try {
+                    let w = img.naturalWidth * imageScale;
+                    let h = img.naturalHeight * imageScale;
+                    const px = w * h;
+                    if (px > maxPixels) {
+                        const r = Math.sqrt(maxPixels / px);
+                        w *= r; h *= r;
+                    }
+                    const cw = Math.round(w);
+                    const ch = Math.round(h);
+
+                    origCanvas.width = cw;
+                    origCanvas.height = ch;
+                    origCtx.drawImage(img, 0, 0, cw, ch);
+                    origCanvas.style.display = 'block';
+                    canvasPlaceholder.style.display = 'none';
+                    estimationSpinner.style.display = 'block';
+                    originalImage = img;
+
+                    const t0 = performance.now();
+
+                    const pixelData = origCtx.getImageData(0, 0, cw, ch);
+                    const result = await workerCall({
+                        type: 'estimate',
+                        pixels: pixelData.data.buffer,
+                        width: cw,
+                        height: ch,
+                    });
+
+                    depthGrayscale = new Uint8Array(result.depthData);
+                    depthW = result.depthW;
+                    depthH = result.depthH;
+                    rawDepthData = new Float32Array(result.rawDepth);
+                    rawW = result.rawW;
+                    rawH = result.rawH;
+
+                    renderDepthMap();
+                    estimationSpinner.style.display = 'none';
+
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    status.textContent = `Done in ${elapsed}s — hover over the depth map to see values`;
+                    canvasActions.classList.remove('hidden');
+                } catch (e) {
+                    status.textContent = 'Error: ' + e.message;
+                    console.error(e);
+                    estimationSpinner.style.display = 'none';
+                }
+                extractBtn.disabled = false;
+            };
+            img.onerror = () => {
+                status.textContent = 'Failed to load image';
+                estimationSpinner.style.display = 'none';
+                extractBtn.disabled = false;
+            };
+            img.src = currentImageUrl;
+        });
+
+        function renderDepthMap() {
+            const colormap = colormapSelect.value;
+            depthCanvas.width = depthW;
+            depthCanvas.height = depthH;
+            const imageData = depthCtx.createImageData(depthW, depthH);
+            const data = imageData.data;
+
+            for (let i = 0; i < depthGrayscale.length; i++) {
+                const [r, g, b] = applyColormap(depthGrayscale[i], colormap);
+                const off = i * 4;
+                data[off] = r;
+                data[off + 1] = g;
+                data[off + 2] = b;
+                data[off + 3] = 255;
+            }
+
+            depthCtx.putImageData(imageData, 0, 0);
+            depthCanvas.style.display = 'block';
+        }
+
+        // Hover to show depth value
+        depthCanvas.addEventListener('mousemove', onDepthHover);
+        depthCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length) onDepthHover(e.touches[0]);
+        });
+        depthCanvas.addEventListener('mouseleave', () => { depthInfo.textContent = ''; });
+        depthCanvas.addEventListener('touchend', () => { depthInfo.textContent = ''; });
+
+        function onDepthHover(event) {
+            if (!rawDepthData) return;
+            const rect = depthCanvas.getBoundingClientRect();
+            const sx = depthCanvas.width / rect.width;
+            const sy = depthCanvas.height / rect.height;
+            const x = Math.floor((event.clientX - rect.left) * sx);
+            const y = Math.floor((event.clientY - rect.top) * sy);
+
+            if (x < 0 || x >= rawW || y < 0 || y >= rawH) return;
+
+            const idx = y * rawW + x;
+            const val = rawDepthData[idx];
+            if (val !== undefined) {
+                depthInfo.textContent = `Pixel (${x}, ${y}) — relative depth: ${val.toFixed(2)}`;
+            }
+        }
+    </script>
+</body>
+</html>

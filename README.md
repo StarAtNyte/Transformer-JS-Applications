@@ -9,6 +9,12 @@ Uses [onnx-community/dinov3-vits16-pretrain-lvd1689m-ONNX](https://huggingface.c
 - **Feature Explorer** (`Dinov3/index.html`) — Upload an image, hover over patches to see a similarity heatmap across the image.
 - **Cross-Image Correspondence** (`Dinov3/correspondence.html`) — Upload two images, hover on one to find the closest matching patch on the other.
 
+### Depth Anything v3
+
+Uses [onnx-community/depth-anything-v3-small](https://huggingface.co/onnx-community/depth-anything-v3-small).
+
+- **Depth Estimation** (`DepthAnything/index.html`) — Upload an image, get a colorized monocular depth map with Inferno, Viridis, or grayscale colormaps.
+
 ## Running
 
 Serve the folder locally:
