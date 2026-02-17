@@ -5,6 +5,9 @@ PortableModels/*
 
 COMING_SOON_MODELS.md
 
+# Node
+node_modules/
+
 # Python
 __pycache__/
 *.pyc
