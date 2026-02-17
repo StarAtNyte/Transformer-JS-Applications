@@ -2,7 +2,6 @@
 PortableModels/*
 # ...except the export scripts
 !PortableModels/export_*.py
-!PortableModels/onnx_models
 
 COMING_SOON_MODELS.md
 

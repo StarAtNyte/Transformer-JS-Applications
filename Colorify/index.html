@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Colorify - Image Colorization</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+            .grid {
+                display: grid;
+                gap: 24px;
+            }
+            @media (min-width: 900px) {
+                .grid {
+                    grid-template-columns: 320px 1fr;
+                }
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+            .dropzone {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 24px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .dropzone:hover, .dropzone.dragover {
+                border-color: #10b981;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.8rem;
+                margin-top: 4px;
+            }
+            #preview {
+                max-width: 100%;
+                max-height: 150px;
+                border-radius: 8px;
+                margin: 12px auto 0;
+                display: none;
+            }
+            .btn {
+                width: 100%;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 12px;
+            }
+            .btn-primary {
+                background: #10b981;
+                color: white;
+            }
+            .btn-primary:hover:not(:disabled) {
+                background: #059669;
+            }
+            .btn-primary:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 12px;
+                text-align: center;
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .progress {
+                margin-top: 12px;
+                display: none;
+            }
+            .progress-bar {
+                height: 4px;
+                background: #eee;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #10b981, #34d399);
+                width: 0%;
+                transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 4px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .model-status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            .model-status.loaded { background: #f0fdf4; }
+            .model-status.loading { background: #fef3c7; }
+            .model-status.error { background: #fef2f2; }
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b;
+                animation: pulse 1s infinite;
+            }
+            .model-status.error .dot { background: #ef4444; }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
+            .sample-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .sample-item {
+                aspect-ratio: 1;
+                border-radius: 6px;
+                overflow: hidden;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .sample-item:hover { transform: scale(1.05); }
+            .sample-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .controls-bar {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+                margin-bottom: 16px;
+                padding: 12px 16px;
+                background: #f1f5f9;
+                border-radius: 8px;
+            }
+            .control-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .control-group label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+            input[type="range"] {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100px;
+                height: 5px;
+                background: #ddd;
+                border-radius: 3px;
+                outline: none;
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 14px;
+                height: 14px;
+                background: #10b981;
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .scale-value {
+                font-size: 0.8rem;
+                color: #888;
+                min-width: 36px;
+            }
+            .canvas-wrap {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+                flex-direction: column;
+            }
+            #resultCanvas {
+                display: none;
+                border-radius: 6px;
+                max-width: 100%;
+                height: auto;
+                margin: auto;
+            }
+            .canvas-placeholder {
+                color: #aaa;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 48px;
+            }
+            .canvas-placeholder svg {
+                width: 64px;
+                height: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            .result-info {
+                margin-top: 12px;
+                padding: 12px;
+                background: #f0fdf4;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                color: #166534;
+            }
+            .result-info.error {
+                background: #fef2f2;
+                color: #991b1b;
+            }
+            .download-btn {
+                display: inline-block;
+                margin-top: 12px;
+                padding: 8px 16px;
+                background: #10b981;
+                color: white;
+                border-radius: 6px;
+                text-decoration: none;
+                font-size: 0.85rem;
+                cursor: pointer;
+            }
+            .download-btn:hover {
+                background: #059669;
+            }
+            .model-select {
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 0.85rem;
+                background: white;
+                color: #333;
+                cursor: pointer;
+                outline: none;
+            }
+            .model-select:focus {
+                border-color: #10b981;
+            }
+            .hidden { display: none !important; }
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #10b981;
+                text-decoration: none;
+            }
+            footer a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>Colorify</h1>
+                <p class="subtitle">AI-Powered Black & White Image Colorization</p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            Upload Image
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input type="file" id="imageInput" accept="image/*" hidden />
+                            <p>Drop image here or click</p>
+                            <p class="hint">PNG, JPG, WebP (B&W works best)</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+
+                        <button id="colorizeBtn" class="btn btn-primary" disabled>Colorize Image</button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                            </svg>
+                            Sample Images
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2 style="margin-bottom: 16px">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                            </svg>
+                            Colorized Result
+                        </h2>
+
+                        <div class="controls-bar">
+                            <div class="control-group">
+                                <label>Model:</label>
+                                <select id="modelSelect" class="model-select">
+                                    <option value="ColorizeArtistic_dyn.onnx">Artistic (244 MB)</option>
+                                    <option value="ColorizeStable_dyn.onnx">Stable (833 MB)</option>
+                                    <option value="DeoldifyVideo_dyn.onnx">Video (833 MB)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Render Factor:</label>
+                                <input id="factorSlider" type="range" min="1" max="40" step="1" value="20" />
+                                <span id="factorValue" class="scale-value">20</span>
+                            </div>
+                        </div>
+
+                        <div class="canvas-wrap">
+                            <canvas id="resultCanvas"></canvas>
+                            <div id="canvasPlaceholder" class="canvas-placeholder">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                <p>Upload or select a B&W image, then click "Colorize Image"</p>
+                            </div>
+                        </div>
+                        <div id="resultInfo" class="result-info hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>Powered by <a href="https://github.com/instant-high/deoldify-onnx" target="_blank">DeOldify ONNX</a> & <a href="https://onnxruntime.ai/" target="_blank">ONNX Runtime Web</a></p>
+            </footer>
+        </div>
+
+        <script type="module">
+            // ── Inline Web Worker for model loading & inference ──
+            const workerCode = `
+                let ortLib = null;
+                let session = null;
+                let loadedModelFile = null;
+
+                async function initOrt() {
+                    if (!ortLib) {
+                        importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js");
+                        ortLib = self.ort;
+                        ortLib.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+                    }
+                }
+
+                self.onmessage = async (e) => {
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            self.postMessage({ id, type: "status", text: "Loading ONNX Runtime..." });
+                            await initOrt();
+
+                            const modelFile = e.data.modelFile;
+                            if (session && loadedModelFile === modelFile) {
+                                self.postMessage({ id, type: "loaded" });
+                                return;
+                            }
+                            if (session) { session.release(); session = null; }
+
+                            self.postMessage({ id, type: "status", text: "Downloading " + modelFile + "..." });
+                            const modelUrl = e.data.modelBaseUrl + modelFile;
+                            session = await ortLib.InferenceSession.create(modelUrl, {
+                                executionProviders: ["wasm"],
+                                graphOptimizationLevel: "all",
+                            });
+                            loadedModelFile = modelFile;
+                            self.postMessage({ id, type: "loaded" });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "colorize") {
+                        try {
+                            const { rgbData, renderW, renderH, origW, origH } = e.data;
+                            const input = new Float32Array(rgbData);
+                            const inputTensor = new ortLib.Tensor("float32", input, [1, 3, renderH, renderW]);
+                            const results = await session.run({ "input": inputTensor });
+                            const output = results.output.data;
+                            self.postMessage({ id, type: "result", output, renderW, renderH, origW, origH }, [output.buffer]);
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+            const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: "application/javascript" })));
+
+            let msgId = 0;
+            const pending = new Map();
+
+            function workerCall(msg, transfer) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id }, transfer || []);
+                });
+            }
+
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") {
+                    modelStatusText.textContent = e.data.text;
+                    return;
+                }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            const MODEL_BASE = new URL("../PortableModels/onnx_models/deoldify/", location.href).href;
+            const SAMPLE_IMAGES = [
+                "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=300&q=80&sat=-100",
+                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&q=80&sat=-100",
+                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&q=80&sat=-100",
+                "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=300&q=80&sat=-100",
+                "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=300&q=80&sat=-100",
+                "https://images.unsplash.com/photo-1444723121867-7a241cacace9?w=300&q=80&sat=-100",
+            ];
+
+            let modelReady = false;
+            let currentImageUrl = null;
+
+            const dropZone = document.getElementById("dropZone");
+            const imageInput = document.getElementById("imageInput");
+            const preview = document.getElementById("preview");
+            const colorizeBtn = document.getElementById("colorizeBtn");
+            const status = document.getElementById("status");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressLabel = document.getElementById("progressLabel");
+            const progressPercent = document.getElementById("progressPercent");
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const modelSelect = document.getElementById("modelSelect");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const resultCanvas = document.getElementById("resultCanvas");
+            const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+            const resultInfo = document.getElementById("resultInfo");
+            const factorSlider = document.getElementById("factorSlider");
+            const factorValueEl = document.getElementById("factorValue");
+
+            function initSampleGallery() {
+                sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) => `
+                    <div class="sample-item" data-index="${i}">
+                        <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                    </div>
+                `).join("");
+            }
+            initSampleGallery();
+
+            async function loadModel() {
+                try {
+                    modelReady = false;
+                    colorizeBtn.disabled = true;
+                    progress.style.display = "block";
+                    progressLabel.textContent = "Loading model...";
+                    modelStatus.className = "model-status loading";
+
+                    await workerCall({ type: "load", modelFile: modelSelect.value, modelBaseUrl: MODEL_BASE });
+
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "Model ready";
+                    colorizeBtn.disabled = false;
+                    progress.style.display = "none";
+                } catch (e) {
+                    console.error("Model load error:", e);
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+
+            modelSelect.addEventListener("change", () => loadModel());
+
+            factorSlider.addEventListener("input", (e) => {
+                factorValueEl.textContent = e.target.value;
+            });
+
+            dropZone.addEventListener("click", () => imageInput.click());
+            dropZone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropZone.classList.add("dragover");
+            });
+            dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/")) handleImageFile(file);
+            });
+            imageInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) handleImageFile(file);
+            });
+
+            function handleImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                    currentImageUrl = e.target.result;
+                    resultInfo.classList.add("hidden");
+                };
+                reader.readAsDataURL(file);
+            }
+
+            sampleGallery.addEventListener("click", (e) => {
+                const item = e.target.closest(".sample-item");
+                if (item) {
+                    const url = SAMPLE_IMAGES[item.dataset.index];
+                    preview.src = url;
+                    preview.style.display = "block";
+                    currentImageUrl = url;
+                    resultInfo.classList.add("hidden");
+                }
+            });
+
+            colorizeBtn.addEventListener("click", async () => {
+                if (!currentImageUrl || !modelReady) return;
+                colorizeBtn.disabled = true;
+                await processImage();
+                colorizeBtn.disabled = false;
+            });
+
+            async function processImage() {
+                status.textContent = "Loading image...";
+                canvasPlaceholder.style.display = "none";
+                resultCanvas.style.display = "none";
+
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = () => reject(new Error("Failed to load image"));
+                    img.src = currentImageUrl;
+                });
+
+                try {
+                    const origW = img.naturalWidth;
+                    const origH = img.naturalHeight;
+                    const renderFactor = parseInt(factorSlider.value);
+                    const baseSize = renderFactor * 32;
+
+                    // Preserve aspect ratio: fit longest side to baseSize, round to multiple of 32
+                    let renderW, renderH;
+                    if (origW >= origH) {
+                        renderW = baseSize;
+                        renderH = Math.max(32, Math.round((origH / origW) * baseSize / 32) * 32);
+                    } else {
+                        renderH = baseSize;
+                        renderW = Math.max(32, Math.round((origW / origH) * baseSize / 32) * 32);
+                    }
+
+                    status.textContent = "Preprocessing...";
+                    progress.style.display = "block";
+                    progressFill.style.width = "20%";
+                    progressPercent.textContent = "20%";
+
+                    // Draw original to get pixel data
+                    const tmpCanvas = document.createElement("canvas");
+                    tmpCanvas.width = origW;
+                    tmpCanvas.height = origH;
+                    const tmpCtx = tmpCanvas.getContext("2d");
+                    tmpCtx.drawImage(img, 0, 0);
+                    const origData = tmpCtx.getImageData(0, 0, origW, origH);
+
+                    // Convert to grayscale → RGB
+                    const resizeCanvas = document.createElement("canvas");
+                    resizeCanvas.width = origW;
+                    resizeCanvas.height = origH;
+                    const resizeCtx = resizeCanvas.getContext("2d");
+                    const grayImageData = resizeCtx.createImageData(origW, origH);
+                    for (let i = 0; i < origData.data.length; i += 4) {
+                        const gray = 0.299 * origData.data[i] + 0.587 * origData.data[i+1] + 0.114 * origData.data[i+2];
+                        grayImageData.data[i] = gray;
+                        grayImageData.data[i+1] = gray;
+                        grayImageData.data[i+2] = gray;
+                        grayImageData.data[i+3] = 255;
+                    }
+                    resizeCtx.putImageData(grayImageData, 0, 0);
+
+                    // Resize preserving aspect ratio
+                    const inputCanvas = document.createElement("canvas");
+                    inputCanvas.width = renderW;
+                    inputCanvas.height = renderH;
+                    const inputCtx = inputCanvas.getContext("2d");
+                    inputCtx.drawImage(resizeCanvas, 0, 0, renderW, renderH);
+                    const inputData = inputCtx.getImageData(0, 0, renderW, renderH);
+
+                    // Convert to CHW float32 [1,3,H,W]
+                    const rgbData = new Float32Array(3 * renderW * renderH);
+                    const pixels = inputData.data;
+                    const planeSize = renderW * renderH;
+                    for (let i = 0; i < planeSize; i++) {
+                        rgbData[i] = pixels[i * 4];                    // R
+                        rgbData[planeSize + i] = pixels[i * 4 + 1];   // G
+                        rgbData[2 * planeSize + i] = pixels[i * 4 + 2]; // B
+                    }
+
+                    status.textContent = "Running inference...";
+                    progressFill.style.width = "40%";
+                    progressPercent.textContent = "40%";
+
+                    const result = await workerCall(
+                        { type: "colorize", rgbData, renderW, renderH, origW, origH },
+                        [rgbData.buffer]
+                    );
+
+                    status.textContent = "Rendering result...";
+                    progressFill.style.width = "80%";
+                    progressPercent.textContent = "80%";
+
+                    // Output is [1,3,renderH,renderW] float32 (0-255)
+                    // Convert CHW → canvas, resize back to original
+                    const outCanvas = document.createElement("canvas");
+                    outCanvas.width = renderW;
+                    outCanvas.height = renderH;
+                    const outCtx = outCanvas.getContext("2d");
+                    const outImageData = outCtx.createImageData(renderW, renderH);
+                    const output = new Float32Array(result.output);
+                    const oPlane = renderW * renderH;
+
+                    for (let i = 0; i < oPlane; i++) {
+                        outImageData.data[i * 4]     = Math.min(255, Math.max(0, Math.round(output[i])));
+                        outImageData.data[i * 4 + 1] = Math.min(255, Math.max(0, Math.round(output[oPlane + i])));
+                        outImageData.data[i * 4 + 2] = Math.min(255, Math.max(0, Math.round(output[2 * oPlane + i])));
+                        outImageData.data[i * 4 + 3] = 255;
+                    }
+                    outCtx.putImageData(outImageData, 0, 0);
+
+                    // Resize colorized back to original size
+                    resultCanvas.width = origW;
+                    resultCanvas.height = origH;
+                    const finalCtx = resultCanvas.getContext("2d");
+                    finalCtx.drawImage(outCanvas, 0, 0, origW, origH);
+
+                    resultCanvas.style.display = "block";
+                    progressFill.style.width = "100%";
+                    progressPercent.textContent = "100%";
+
+                    resultInfo.classList.remove("hidden", "error");
+                    resultInfo.innerHTML = `<strong>Success!</strong> Colorized ${origW}×${origH} image (render factor ${renderFactor}, ${renderW}×${renderH} inference). <a class="download-btn" id="downloadBtn">⬇ Download</a>`;
+                    document.getElementById("downloadBtn").addEventListener("click", () => {
+                        const link = document.createElement("a");
+                        link.download = "colorized.png";
+                        link.href = resultCanvas.toDataURL("image/png");
+                        link.click();
+                    });
+
+                    status.textContent = "Colorization complete!";
+                    progress.style.display = "none";
+                } catch (error) {
+                    status.textContent = "Error: " + error.message;
+                    console.error("Processing error:", error);
+                    progress.style.display = "none";
+                    resultInfo.classList.remove("hidden");
+                    resultInfo.classList.add("error");
+                    resultInfo.textContent = "Error: " + error.message;
+                }
+            }
+        </script>
+    </body>
+</html>
