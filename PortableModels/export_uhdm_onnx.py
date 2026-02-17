@@ -143,10 +143,7 @@ def export_variant(variant_name, output_dir):
             do_constant_folding=True,
             input_names=['image'],
             output_names=['output'],
-            dynamic_axes={
-                'image':  {0: 'batch', 2: 'height', 3: 'width'},
-                'output': {0: 'batch', 2: 'height', 3: 'width'},
-            },
+            dynamo=False,
         )
 
         _verify(onnx_path, dummy, out)
