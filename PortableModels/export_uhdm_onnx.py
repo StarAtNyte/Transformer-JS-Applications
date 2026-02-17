@@ -122,7 +122,7 @@ def export_variant(variant_name, output_dir):
         wrapper = ESDNetWrapper(net)
         wrapper.eval()
 
-        # Use 512×512 for export (must be multiple of 32)
+        # Use 512×512 as the representative shape for export (must be multiple of 32)
         dummy = torch.randn(1, 3, 512, 512)
 
         with torch.no_grad():
@@ -143,6 +143,10 @@ def export_variant(variant_name, output_dir):
             do_constant_folding=True,
             input_names=['image'],
             output_names=['output'],
+            dynamic_axes={
+                'image':  {2: 'height', 3: 'width'},
+                'output': {2: 'height', 3: 'width'},
+            },
             dynamo=False,
         )
 
