@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Vision Language - Image Understanding</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+            .model-tabs {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 24px;
+                justify-content: center;
+            }
+            .model-tab {
+                padding: 10px 20px;
+                border: 2px solid #e2e8f0;
+                background: white;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .model-tab:hover {
+                border-color: #6366f1;
+            }
+            .model-tab.active {
+                background: #6366f1;
+                border-color: #6366f1;
+                color: white;
+            }
+            .grid {
+                display: grid;
+                gap: 24px;
+            }
+            @media (min-width: 900px) {
+                .grid {
+                    grid-template-columns: 320px 1fr;
+                }
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+            .dropzone {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 24px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .dropzone:hover,
+            .dropzone.dragover {
+                border-color: #6366f1;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.8rem;
+                margin-top: 4px;
+            }
+            #preview {
+                max-width: 100%;
+                max-height: 150px;
+                border-radius: 8px;
+                margin: 12px auto 0;
+                display: none;
+            }
+            .prompt-area {
+                margin-top: 12px;
+            }
+            .prompt-area label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                display: block;
+                margin-bottom: 6px;
+            }
+            .prompt-area textarea,
+            .task-select {
+                width: 100%;
+                min-height: 60px;
+                padding: 10px 12px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.9rem;
+                resize: vertical;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+            .task-select {
+                min-height: auto;
+                cursor: pointer;
+                background: white;
+            }
+            .prompt-area textarea:focus,
+            .task-select:focus {
+                border-color: #6366f1;
+            }
+            .btn {
+                width: 100%;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 12px;
+            }
+            .btn-primary {
+                background: #6366f1;
+                color: white;
+            }
+            .btn-primary:hover:not(:disabled) {
+                background: #4f46e5;
+            }
+            .btn-primary:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 12px;
+                text-align: center;
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .progress {
+                margin-top: 12px;
+                display: none;
+            }
+            .progress-bar {
+                height: 4px;
+                background: #eee;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                width: 0%;
+                transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 4px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .model-status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            .model-status.loaded {
+                background: #f0fdf4;
+            }
+            .model-status.loading {
+                background: #fef3c7;
+            }
+            .model-status.error {
+                background: #fef2f2;
+            }
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b;
+                animation: pulse 1s infinite;
+            }
+            .model-status.error .dot {
+                background: #ef4444;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
+            .sample-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .sample-item {
+                aspect-ratio: 1;
+                border-radius: 6px;
+                overflow: hidden;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .sample-item:hover {
+                transform: scale(1.05);
+            }
+            .sample-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .output-area {
+                min-height: 300px;
+                display: flex;
+                flex-direction: column;
+            }
+            .output-image-wrap {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+                margin-bottom: 16px;
+            }
+            .output-image-wrap img {
+                max-width: 100%;
+                max-height: 400px;
+                border-radius: 6px;
+            }
+            .output-placeholder {
+                color: #aaa;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 48px;
+            }
+            .output-placeholder svg {
+                width: 64px;
+                height: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            .response-box {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px;
+                font-size: 0.95rem;
+                line-height: 1.6;
+                color: #333;
+                min-height: 120px;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .response-box.streaming {
+                border-color: #6366f1;
+            }
+            .response-box .cursor {
+                display: inline-block;
+                width: 2px;
+                height: 1em;
+                background: #6366f1;
+                animation: blink 1s infinite;
+                vertical-align: text-bottom;
+                margin-left: 2px;
+            }
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0; }
+            }
+            .response-label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                margin-bottom: 8px;
+            }
+            .hidden {
+                display: none !important;
+            }
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #6366f1;
+                text-decoration: none;
+            }
+            footer a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>Vision Language</h1>
+                <p class="subtitle">Image Understanding powered by Transformers.js — runs entirely in your browser</p>
+            </header>
+
+            <div class="model-tabs">
+                <button class="model-tab active" data-model="florence">Florence-2</button>
+                <button class="model-tab" data-model="qwen">Qwen2-VL</button>
+            </div>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            Upload Image
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input type="file" id="imageInput" accept="image/*" hidden />
+                            <p>Drop image here or click</p>
+                            <p class="hint">PNG, JPG, WebP</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+
+                        <div class="prompt-area" id="florenceTaskArea">
+                            <label for="taskSelect">Task</label>
+                            <select id="taskSelect" class="task-select">
+                                <option value="&lt;DETAILED_CAPTION&gt;">Detailed Caption</option>
+                                <option value="&lt;MORE_DETAILED_CAPTION&gt;">More Detailed Caption</option>
+                                <option value="&lt;CAPTION_TO_PHRASE_GROUNDING&gt;">Caption to Phrase Grounding</option>
+                                <option value="&lt;OD&gt;">Object Detection</option>
+                                <option value="&lt;DENSE_REGION_CAPTION&gt;">Dense Region Caption</option>
+                                <option value="&lt;OCR&gt;">Text Recognition (OCR)</option>
+                            </select>
+                        </div>
+
+                        <div class="prompt-area hidden" id="qwenPromptArea">
+                            <label for="promptInput">Prompt</label>
+                            <textarea id="promptInput" placeholder="Describe this image.">Describe this image.</textarea>
+                        </div>
+
+                        <button id="generateBtn" class="btn btn-primary" disabled>
+                            Generate Response
+                        </button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                            </svg>
+                            Sample Images
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card output-area">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                            </svg>
+                            Model Response
+                        </h2>
+
+                        <div id="outputImageWrap" class="output-image-wrap hidden">
+                            <img id="outputImage" alt="Input image" />
+                        </div>
+
+                        <div id="outputPlaceholder" class="output-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p>Upload or select an image, then click "Generate Response"</p>
+                        </div>
+
+                        <div id="responseSection" class="hidden">
+                            <p class="response-label">Response:</p>
+                            <div id="responseBox" class="response-box"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>
+                    Powered by
+                    <a href="https://huggingface.co/onnx-community/Florence-2-base-ft" target="_blank">Florence-2</a>
+                    &
+                    <a href="https://huggingface.co/onnx-community/Qwen2-VL-2B-Instruct" target="_blank">Qwen2-VL</a>
+                    via
+                    <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>
+                </p>
+            </footer>
+        </div>
+
+        <script type="module">
+            const florenceWorkerCode = `
+                let Florence2ForConditionalGeneration, AutoProcessor, RawImage, env;
+                let processor = null, model = null;
+
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    Florence2ForConditionalGeneration = T.Florence2ForConditionalGeneration;
+                    AutoProcessor = T.AutoProcessor;
+                    RawImage = T.RawImage;
+                    env = T.env;
+                    env.allowLocalModels = false;
+                }
+
+                const ready = init();
+                const MODEL_ID = "onnx-community/Florence-2-base-ft";
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            self.postMessage({ id, type: "status", text: "Loading processor..." });
+                            processor = await AutoProcessor.from_pretrained(MODEL_ID);
+                            self.postMessage({ id, type: "status", text: "Loading Florence-2..." });
+                            model = await Florence2ForConditionalGeneration.from_pretrained(MODEL_ID, {
+                                dtype: "q4",
+                                device: "wasm",
+                                progress_callback: (p) => {
+                                    if (p.status === "progress" && p.progress != null) {
+                                        self.postMessage({ id, type: "progress", percent: Math.round(p.progress), file: p.file || "" });
+                                    }
+                                }
+                            });
+                            self.postMessage({ id, type: "loaded" });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "generate") {
+                        try {
+                            const { imageData, imageWidth, imageHeight, task } = e.data;
+                            const image = new RawImage(new Uint8ClampedArray(imageData), imageWidth, imageHeight, 4);
+                            const prompts = processor.construct_prompts(task);
+                            const inputs = await processor(image, prompts);
+                            const generated_ids = await model.generate({ ...inputs, max_new_tokens: 1024 });
+                            const generated_text = processor.batch_decode(generated_ids, { skip_special_tokens: false })[0];
+                            const result = processor.post_process_generation(generated_text, task, { width: imageWidth, height: imageHeight });
+                            self.postMessage({ id, type: "done", text: JSON.stringify(result, null, 2) });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                    }
+                };
+            `;
+
+            const qwenWorkerCode = `
+                let Qwen2VLForConditionalGeneration, AutoProcessor, RawImage, env;
+                let processor = null, model = null;
+
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    Qwen2VLForConditionalGeneration = T.Qwen2VLForConditionalGeneration;
+                    AutoProcessor = T.AutoProcessor;
+                    RawImage = T.RawImage;
+                    env = T.env;
+                    env.allowLocalModels = false;
+                }
+
+                const ready = init();
+                const MODEL_ID = "onnx-community/Qwen2-VL-2B-Instruct";
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            self.postMessage({ id, type: "status", text: "Loading processor..." });
+                            processor = await AutoProcessor.from_pretrained(MODEL_ID);
+                            self.postMessage({ id, type: "status", text: "Loading Qwen2-VL..." });
+                            model = await Qwen2VLForConditionalGeneration.from_pretrained(MODEL_ID, {
+                                dtype: {
+                                    embed_tokens: "fp16",
+                                    vision_encoder: "fp16",
+                                    decoder_model_merged: "q4",
+                                },
+                                device: "wasm",
+                                progress_callback: (p) => {
+                                    if (p.status === "progress" && p.progress != null) {
+                                        self.postMessage({ id, type: "progress", percent: Math.round(p.progress), file: p.file || "" });
+                                    }
+                                }
+                            });
+                            self.postMessage({ id, type: "loaded" });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "generate") {
+                        try {
+                            const { imageData, imageWidth, imageHeight, prompt, maxTokens } = e.data;
+                            const image = new RawImage(new Uint8ClampedArray(imageData), imageWidth, imageHeight, 4);
+                            const resized = await image.resize(448, 448);
+                            const conversation = [{ role: "user", content: [{ type: "image" }, { type: "text", text: prompt }] }];
+                            const text = processor.apply_chat_template(conversation, { add_generation_prompt: true });
+                            const inputs = await processor(text, resized);
+                            const outputs = await model.generate({ ...inputs, max_new_tokens: maxTokens || 256, do_sample: false });
+                            const decoded = processor.batch_decode(outputs, { skip_special_tokens: true })[0];
+                            self.postMessage({ id, type: "done", text: decoded });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                    }
+                };
+            `;
+
+            let currentModel = "florence";
+            let florenceWorker = new Worker(URL.createObjectURL(new Blob([florenceWorkerCode])));
+            let qwenWorker = new Worker(URL.createObjectURL(new Blob([qwenWorkerCode])));
+            let modelReady = { florence: false, qwen: false };
+            let currentImageUrl = null;
+            let isGenerating = false;
+
+            let msgId = 0;
+            const pending = new Map();
+
+            function getWorker() {
+                return currentModel === "florence" ? florenceWorker : qwenWorker;
+            }
+
+            function workerCall(msg) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    getWorker().postMessage({ ...msg, id });
+                });
+            }
+
+            function handleWorkerMessage(e) {
+                const { id, type } = e.data;
+                if (type === "status") {
+                    modelStatusText.textContent = e.data.text;
+                    return;
+                }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    if (e.data.file) {
+                        progressLabel.textContent = e.data.file.split("/").pop();
+                    }
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            }
+
+            florenceWorker.onmessage = handleWorkerMessage;
+            qwenWorker.onmessage = handleWorkerMessage;
+
+            const SAMPLE_IMAGES = [
+                "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&q=80",
+                "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80",
+                "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=80",
+                "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&q=80",
+                "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&q=80",
+                "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&q=80",
+            ];
+
+            const dropZone = document.getElementById("dropZone");
+            const imageInput = document.getElementById("imageInput");
+            const preview = document.getElementById("preview");
+            const taskSelect = document.getElementById("taskSelect");
+            const promptInput = document.getElementById("promptInput");
+            const generateBtn = document.getElementById("generateBtn");
+            const status = document.getElementById("status");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressLabel = document.getElementById("progressLabel");
+            const progressPercent = document.getElementById("progressPercent");
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const outputPlaceholder = document.getElementById("outputPlaceholder");
+            const outputImageWrap = document.getElementById("outputImageWrap");
+            const outputImage = document.getElementById("outputImage");
+            const responseSection = document.getElementById("responseSection");
+            const responseBox = document.getElementById("responseBox");
+            const florenceTaskArea = document.getElementById("florenceTaskArea");
+            const qwenPromptArea = document.getElementById("qwenPromptArea");
+
+            function initSampleGallery() {
+                sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) => `
+                    <div class="sample-item" data-index="${i}">
+                        <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                    </div>
+                `).join("");
+            }
+            initSampleGallery();
+
+            async function loadModel(modelName) {
+                try {
+                    progress.style.display = "block";
+                    progressLabel.textContent = "Downloading model...";
+                    await workerCall({ type: "load" });
+                    modelReady[modelName] = true;
+                    updateModelStatus();
+                    progress.style.display = "none";
+                } catch (e) {
+                    console.error("Model load error:", e);
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load: " + e.message;
+                    progress.style.display = "none";
+                }
+            }
+
+            function updateModelStatus() {
+                if (modelReady[currentModel]) {
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = (currentModel === "florence" ? "Florence-2" : "Qwen2-VL") + " ready";
+                } else {
+                    modelStatus.className = "model-status loading";
+                    modelStatusText.textContent = "Loading " + (currentModel === "florence" ? "Florence-2" : "Qwen2-VL") + "...";
+                }
+                updateGenerateBtn();
+            }
+
+            function updateGenerateBtn() {
+                generateBtn.disabled = !modelReady[currentModel] || !currentImageUrl || isGenerating;
+            }
+
+            document.querySelectorAll(".model-tab").forEach(tab => {
+                tab.addEventListener("click", () => {
+                    document.querySelectorAll(".model-tab").forEach(t => t.classList.remove("active"));
+                    tab.classList.add("active");
+                    currentModel = tab.dataset.model;
+
+                    florenceTaskArea.classList.toggle("hidden", currentModel !== "florence");
+                    qwenPromptArea.classList.toggle("hidden", currentModel !== "qwen");
+
+                    updateModelStatus();
+
+                    if (!modelReady[currentModel]) {
+                        updateModelStatus();
+                        loadModel(currentModel);
+                    }
+                });
+            });
+
+            loadModel("florence");
+
+            dropZone.addEventListener("click", () => imageInput.click());
+            dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+            dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/")) handleImageFile(file);
+            });
+            imageInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) handleImageFile(file);
+            });
+
+            function handleImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                    currentImageUrl = e.target.result;
+                    updateGenerateBtn();
+                };
+                reader.readAsDataURL(file);
+            }
+
+            sampleGallery.addEventListener("click", (e) => {
+                const item = e.target.closest(".sample-item");
+                if (item) {
+                    const url = SAMPLE_IMAGES[item.dataset.index];
+                    preview.src = url;
+                    preview.style.display = "block";
+                    currentImageUrl = url;
+                    updateGenerateBtn();
+                }
+            });
+
+            generateBtn.addEventListener("click", async () => {
+                if (!currentImageUrl || !modelReady[currentModel] || isGenerating) return;
+                isGenerating = true;
+                updateGenerateBtn();
+
+                outputPlaceholder.classList.add("hidden");
+                outputImageWrap.classList.remove("hidden");
+                responseSection.classList.remove("hidden");
+
+                outputImage.src = currentImageUrl;
+                responseBox.innerHTML = '<span class="cursor"></span>';
+                responseBox.classList.add("streaming");
+                status.textContent = "";
+
+                try {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = currentImageUrl;
+                    });
+
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                    let result;
+                    if (currentModel === "florence") {
+                        result = await workerCall({
+                            type: "generate",
+                            imageData: imageData.data.buffer,
+                            imageWidth: canvas.width,
+                            imageHeight: canvas.height,
+                            task: taskSelect.value,
+                        });
+                    } else {
+                        const prompt = promptInput.value.trim() || "Describe this image.";
+                        result = await workerCall({
+                            type: "generate",
+                            imageData: imageData.data.buffer,
+                            imageWidth: canvas.width,
+                            imageHeight: canvas.height,
+                            prompt,
+                            maxTokens: 256,
+                        });
+                    }
+
+                    responseBox.textContent = result.text;
+                    responseBox.classList.remove("streaming");
+                    status.textContent = "Generation complete.";
+                } catch (err) {
+                    responseBox.textContent = "Error: " + err.message;
+                    responseBox.classList.remove("streaming");
+                    status.textContent = "Generation failed.";
+                    console.error("Generation error:", err);
+                }
+
+                isGenerating = false;
+                updateGenerateBtn();
+            });
+        </script>
+    </body>
+</html>

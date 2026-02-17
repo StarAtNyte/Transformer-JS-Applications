@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Image Mosaic</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: #1a1a1a;
+                font-family: system-ui, sans-serif;
+                color: #fff;
+            }
+            h1 {
+                margin-top: 0;
+                margin-bottom: 20px;
+            }
+            .container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .stage {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .stage canvas {
+                max-width: 150px;
+                height: auto;
+                border: 2px solid #444;
+            }
+            .stage label {
+                margin-top: 8px;
+                font-size: 14px;
+                color: #aaa;
+            }
+            #output {
+                max-width: none;
+            }
+            .stage.full-width {
+                width: 100%;
+            }
+            .total-time {
+                margin-top: 10px;
+                font-size: 14px;
+                color: #fff;
+            }
+            .progress-container {
+                width: 100%;
+                height: 8px;
+                background: #333;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .progress-bar {
+                height: 100%;
+                width: 0%;
+                background: #2a6;
+                transition: width 0.1s ease-out;
+            }
+            .progress-text {
+                font-size: 12px;
+                color: #888;
+                margin: 5px 0 0 0;
+            }
+            body.busy,
+            body.busy * {
+                cursor: wait !important;
+            }
+            .grid-btn {
+                padding: 8px 16px;
+                border: 1px solid #444;
+                background: #333;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+            }
+            .grid-btn:hover {
+                background: #444;
+            }
+            .grid-btn.active {
+                background: #666;
+                border-color: #888;
+            }
+            .download-btn {
+                padding: 10px 20px;
+                border: 1px solid #444;
+                background: #2a6;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+                font-size: 14px;
+                width: 100%;
+            }
+            .download-btn:hover {
+                background: #3b7;
+            }
+            .info {
+                color: #666;
+                font-size: 12px;
+                margin: 0;
+            }
+            .right-panel .stage canvas {
+                max-width: none;
+                display: block;
+            }
+            .results-row {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .main-layout {
+                display: flex;
+                gap: 30px;
+                align-items: flex-start;
+            }
+            .left-panel {
+                flex-shrink: 0;
+                width: 320px;
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                position: sticky;
+                top: 20px;
+            }
+            .right-panel {
+                flex-shrink: 0;
+            }
+            .control-group {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .control-group label {
+                color: #aaa;
+                font-size: 14px;
+            }
+            .control-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .control-row input[type="range"] {
+                flex: 1;
+            }
+            .control-row span {
+                min-width: 50px;
+                color: #fff;
+            }
+            .grid-buttons {
+                display: flex;
+                gap: 8px;
+            }
+            #image-upload {
+                color: #fff;
+                font-size: 14px;
+            }
+            #image-upload::file-selector-button {
+                padding: 8px 16px;
+                border: 1px solid #444;
+                background: #333;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+                margin-right: 10px;
+            }
+            #image-upload::file-selector-button:hover {
+                background: #444;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Image Mosaic Generator</h1>
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="control-group">
+                    <label>Image:</label>
+                    <input type="file" id="image-upload" accept="image/*" />
+                </div>
+                <div class="control-group">
+                    <label id="tile-label">Tile width:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="tile-slider"
+                            min="0.2"
+                            max="2"
+                            step="0.2"
+                            value="0.6"
+                        />
+                        <span id="tile-value">0.6cm</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label id="print-label">Print width:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="size-slider"
+                            min="0.6"
+                            max="2"
+                            step="0.2"
+                            value="1"
+                        />
+                        <span id="size-value">1m</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Zoom (display):</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="zoom-slider"
+                            min="10"
+                            max="100"
+                            step="10"
+                            value="100"
+                        />
+                        <span id="zoom-value">100%</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Grid:</label>
+                    <div class="grid-buttons">
+                        <button id="grid-none" class="grid-btn active">
+                            None
+                        </button>
+                        <button id="grid-white" class="grid-btn">White</button>
+                        <button id="grid-black" class="grid-btn">Black</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Original blend:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="overlay-slider"
+                            min="0"
+                            max="100"
+                            step="10"
+                            value="30"
+                        />
+                        <span id="overlay-value">30%</span>
+                    </div>
+                </div>
+                <p class="info">
+                    Print: 150 DPI. Sizes refer to the smaller side.
+                </p>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <p id="progress-text" class="progress-text"></p>
+                <div class="control-group">
+                    <button id="download-btn" class="download-btn">
+                        Download Result
+                    </button>
+                </div>
+                <div class="container">
+                    <div class="stage">
+                        <canvas id="i1"></canvas>
+                        <label id="label-i1">i1: Scaled to print size</label>
+                    </div>
+                    <div class="stage">
+                        <canvas id="i2"></canvas>
+                        <label id="label-i2"
+                            >i2: Resized to tile multiples</label
+                        >
+                    </div>
+                    <div class="stage">
+                        <canvas id="i3"></canvas>
+                        <label id="label-i3">i3: Reduced to tile size</label>
+                    </div>
+                    <div class="stage">
+                        <canvas id="i4"></canvas>
+                        <label id="label-i4"
+                            >i4: Expanded (nearest neighbor)</label
+                        >
+                    </div>
+                    <div class="stage">
+                        <canvas id="i5"></canvas>
+                        <label id="label-i5">i5: Grayscale of i3</label>
+                    </div>
+                </div>
+                <p id="total-time" class="total-time"></p>
+            </div>
+            <div class="right-panel">
+                <div class="stage full-width">
+                    <canvas id="output"></canvas>
+                    <label id="label-output">Output</label>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const DPI = 150;
+            const CM_PER_INCH = 2.54;
+            const PIXELS_PER_CM = DPI / CM_PER_INCH;
+
+            let tileSizeCm = 0.6;
+            let printSizeM = 1.0;
+            let originalImage = null;
+            let smallerSide = "width"; // 'width' or 'height' based on image orientation
+
+            // High-quality resize using canvas imageSmoothingQuality
+            function resizeHighQuality(srcCanvas, dstWidth, dstHeight) {
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = dstWidth;
+                dstCanvas.height = dstHeight;
+                const dstCtx = dstCanvas.getContext("2d");
+                dstCtx.imageSmoothingEnabled = true;
+                dstCtx.imageSmoothingQuality = "high";
+                dstCtx.drawImage(srcCanvas, 0, 0, dstWidth, dstHeight);
+                return dstCanvas;
+            }
+
+            // Nearest neighbor resize (for mosaic effect)
+            function resizeNearestNeighbor(srcCanvas, dstWidth, dstHeight) {
+                const srcCtx = srcCanvas.getContext("2d");
+                const srcData = srcCtx.getImageData(
+                    0,
+                    0,
+                    srcCanvas.width,
+                    srcCanvas.height,
+                );
+                const src = srcData.data;
+                const srcW = srcCanvas.width;
+                const srcH = srcCanvas.height;
+
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = dstWidth;
+                dstCanvas.height = dstHeight;
+                const dstCtx = dstCanvas.getContext("2d");
+                const dstData = dstCtx.createImageData(dstWidth, dstHeight);
+                const dst = dstData.data;
+
+                const xRatio = srcW / dstWidth;
+                const yRatio = srcH / dstHeight;
+
+                for (let y = 0; y < dstHeight; y++) {
+                    for (let x = 0; x < dstWidth; x++) {
+                        const srcX = Math.floor(x * xRatio);
+                        const srcY = Math.floor(y * yRatio);
+                        const srcIdx = (srcY * srcW + srcX) * 4;
+                        const dstIdx = (y * dstWidth + x) * 4;
+
+                        dst[dstIdx] = src[srcIdx];
+                        dst[dstIdx + 1] = src[srcIdx + 1];
+                        dst[dstIdx + 2] = src[srcIdx + 2];
+                        dst[dstIdx + 3] = src[srcIdx + 3];
+                    }
+                }
+
+                dstCtx.putImageData(dstData, 0, 0);
+                return dstCanvas;
+            }
+
+            // Convert to grayscale
+            function toGrayscale(srcCanvas) {
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = srcCanvas.width;
+                dstCanvas.height = srcCanvas.height;
+                const srcCtx = srcCanvas.getContext("2d");
+                const dstCtx = dstCanvas.getContext("2d");
+
+                const srcData = srcCtx.getImageData(
+                    0,
+                    0,
+                    srcCanvas.width,
+                    srcCanvas.height,
+                );
+                const src = srcData.data;
+                const dstData = dstCtx.createImageData(
+                    srcCanvas.width,
+                    srcCanvas.height,
+                );
+                const dst = dstData.data;
+
+                for (let i = 0; i < src.length; i += 4) {
+                    const gray =
+                        0.299 * src[i] +
+                        0.587 * src[i + 1] +
+                        0.114 * src[i + 2];
+                    dst[i] = gray;
+                    dst[i + 1] = gray;
+                    dst[i + 2] = gray;
+                    dst[i + 3] = src[i + 3];
+                }
+
+                dstCtx.putImageData(dstData, 0, 0);
+                return dstCanvas;
+            }
+
+            // RGB to HSL conversion
+            function rgbToHsl(r, g, b) {
+                r /= 255;
+                g /= 255;
+                b /= 255;
+                const max = Math.max(r, g, b),
+                    min = Math.min(r, g, b);
+                let h,
+                    s,
+                    l = (max + min) / 2;
+
+                if (max === min) {
+                    h = s = 0;
+                } else {
+                    const d = max - min;
+                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                    switch (max) {
+                        case r:
+                            h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+                            break;
+                        case g:
+                            h = ((b - r) / d + 2) / 6;
+                            break;
+                        case b:
+                            h = ((r - g) / d + 4) / 6;
+                            break;
+                    }
+                }
+                return [h, s, l];
+            }
+
+            // HSL to RGB conversion
+            function hslToRgb(h, s, l) {
+                let r, g, b;
+                if (s === 0) {
+                    r = g = b = l;
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1 / 6) return p + (q - p) * 6 * t;
+                        if (t < 1 / 2) return q;
+                        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                        return p;
+                    };
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1 / 3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1 / 3);
+                }
+                return [
+                    Math.round(r * 255),
+                    Math.round(g * 255),
+                    Math.round(b * 255),
+                ];
+            }
+
+            // Overlay blend for luminosity (pegtop soft light formula)
+            function softLight(base, blend) {
+                return (1 - 2 * blend) * base * base + 2 * blend * base;
+            }
+
+            // Overlay i5 on each tile of i4, preserving color (HSL-based)
+            function overlayOnTiles(i4Canvas, i5Canvas, tileW, tileH) {
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = i4Canvas.width;
+                dstCanvas.height = i4Canvas.height;
+
+                const i4Ctx = i4Canvas.getContext("2d");
+                const i5Ctx = i5Canvas.getContext("2d");
+                const dstCtx = dstCanvas.getContext("2d");
+
+                const i4Data = i4Ctx.getImageData(
+                    0,
+                    0,
+                    i4Canvas.width,
+                    i4Canvas.height,
+                );
+                const i5Data = i5Ctx.getImageData(
+                    0,
+                    0,
+                    i5Canvas.width,
+                    i5Canvas.height,
+                );
+                const dstData = dstCtx.createImageData(
+                    i4Canvas.width,
+                    i4Canvas.height,
+                );
+
+                const base = i4Data.data;
+                const blend = i5Data.data;
+                const dst = dstData.data;
+                const i4W = i4Canvas.width;
+                const i4H = i4Canvas.height;
+                const i5W = i5Canvas.width;
+                const i5H = i5Canvas.height;
+
+                for (let y = 0; y < i4H; y++) {
+                    for (let x = 0; x < i4W; x++) {
+                        // Position within current tile
+                        const inTileX = x % tileW;
+                        const inTileY = y % tileH;
+
+                        // Map tile position to i5 coordinates (scale i5 to tile size)
+                        const i5X = Math.floor((inTileX * i5W) / tileW);
+                        const i5Y = Math.floor((inTileY * i5H) / tileH);
+
+                        const baseIdx = (y * i4W + x) * 4;
+                        const blendIdx = (i5Y * i5W + i5X) * 4;
+
+                        // Get base color HSL
+                        const [h, s, l] = rgbToHsl(
+                            base[baseIdx],
+                            base[baseIdx + 1],
+                            base[baseIdx + 2],
+                        );
+
+                        // Get grayscale value (0-1)
+                        const gray = blend[blendIdx] / 255;
+
+                        // Apply soft light to luminosity only
+                        const newL = softLight(l, gray);
+
+                        // Convert back to RGB with original hue and saturation
+                        const [r, g, b] = hslToRgb(h, s, newL);
+
+                        dst[baseIdx] = r;
+                        dst[baseIdx + 1] = g;
+                        dst[baseIdx + 2] = b;
+                        dst[baseIdx + 3] = base[baseIdx + 3];
+                    }
+                }
+
+                dstCtx.putImageData(dstData, 0, 0);
+                return dstCanvas;
+            }
+
+            // Copy canvas to target element
+            function copyToCanvas(src, targetId) {
+                const target = document.getElementById(targetId);
+                target.width = src.width;
+                target.height = src.height;
+                target.getContext("2d").drawImage(src, 0, 0);
+            }
+
+            // Calculate tile size in pixels from cm, maintaining aspect ratio
+            function calculateTileSize(imgWidth, imgHeight) {
+                const aspectRatio = imgWidth / imgHeight;
+                const tileSizePx = Math.round(tileSizeCm * PIXELS_PER_CM);
+                let tileW, tileH;
+
+                if (imgWidth <= imgHeight) {
+                    tileW = tileSizePx;
+                    tileH = Math.round(tileSizePx / aspectRatio);
+                } else {
+                    tileH = tileSizePx;
+                    tileW = Math.round(tileSizePx * aspectRatio);
+                }
+
+                return { tileW, tileH };
+            }
+
+            // Calculate scaled image size based on smaller side
+            function calculateScaledSize(imgWidth, imgHeight) {
+                const printSizePx = Math.round(
+                    printSizeM * 100 * PIXELS_PER_CM,
+                );
+                const aspectRatio = imgWidth / imgHeight;
+
+                let scaledW, scaledH;
+                if (imgWidth <= imgHeight) {
+                    // Width is smaller side
+                    scaledW = printSizePx;
+                    scaledH = Math.round(printSizePx / aspectRatio);
+                } else {
+                    // Height is smaller side
+                    scaledH = printSizePx;
+                    scaledW = Math.round(printSizePx * aspectRatio);
+                }
+
+                return { scaledW, scaledH };
+            }
+
+            // Update labels based on image orientation
+            function updateSideLabels(imgWidth, imgHeight) {
+                smallerSide = imgWidth <= imgHeight ? "width" : "height";
+                document.getElementById("tile-label").textContent =
+                    `Tile ${smallerSide}:`;
+                document.getElementById("print-label").textContent =
+                    `Print ${smallerSide}:`;
+            }
+
+            function setTime(id, ms) {
+                document.getElementById(`label-${id}`).textContent +=
+                    ` (${ms.toFixed(1)}ms)`;
+            }
+
+            function setProgress(percent, text) {
+                document.getElementById("progress-bar").style.width =
+                    percent + "%";
+                document.getElementById("progress-text").textContent = text;
+            }
+
+            function setBusy(busy) {
+                if (busy) {
+                    document.body.classList.add("busy");
+                    setProgress(0, "Starting...");
+                } else {
+                    document.body.classList.remove("busy");
+                }
+            }
+
+            // Store state for grid redraw
+            let storedResult = null;
+            let storedI2 = null;
+            let storedTileW = 0;
+            let storedTileH = 0;
+            let currentGrid = "none";
+            let overlayPercent = 30;
+
+            function drawGrid(ctx, width, height, tileW, tileH, color) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                for (let x = tileW; x < width; x += tileW) {
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                }
+                for (let y = tileH; y < height; y += tileH) {
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                }
+                ctx.stroke();
+            }
+
+            // Zoom function
+            function updateZoom() {
+                const zoomSlider = document.getElementById("zoom-slider");
+                const zoomValue = document.getElementById("zoom-value");
+                const outputCanvas = document.getElementById("output");
+                const zoom = parseInt(zoomSlider.value) / 100;
+                zoomValue.textContent = zoomSlider.value + "%";
+                outputCanvas.style.width = outputCanvas.width * zoom + "px";
+                outputCanvas.style.height = outputCanvas.height * zoom + "px";
+            }
+
+            function updateResults() {
+                if (!storedResult || !storedI2) return;
+
+                const output = document.createElement("canvas");
+                output.width = storedResult.width;
+                output.height = storedResult.height;
+                const outputCtx = output.getContext("2d");
+
+                // Draw base result
+                outputCtx.drawImage(storedResult, 0, 0);
+
+                // Apply original blend if > 0
+                if (overlayPercent > 0) {
+                    outputCtx.globalAlpha = overlayPercent / 100;
+                    outputCtx.drawImage(storedI2, 0, 0);
+                    outputCtx.globalAlpha = 1.0;
+                }
+
+                // Draw grid if enabled
+                if (currentGrid !== "none") {
+                    drawGrid(
+                        outputCtx,
+                        output.width,
+                        output.height,
+                        storedTileW,
+                        storedTileH,
+                        currentGrid,
+                    );
+                }
+
+                copyToCanvas(output, "output");
+
+                // Update label
+                const label = document.getElementById("label-output");
+                label.textContent =
+                    overlayPercent > 0
+                        ? `Output (${overlayPercent}% original)`
+                        : "Output (mosaic only)";
+
+                updateZoom();
+            }
+
+            // Grid button handlers
+            document.querySelectorAll(".grid-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    document
+                        .querySelectorAll(".grid-btn")
+                        .forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    if (btn.id === "grid-none") currentGrid = "none";
+                    else if (btn.id === "grid-white") currentGrid = "white";
+                    else if (btn.id === "grid-black") currentGrid = "black";
+                    updateResults();
+                });
+            });
+
+            // Overlay slider handler
+            const overlaySlider = document.getElementById("overlay-slider");
+            const overlayValue = document.getElementById("overlay-value");
+            overlaySlider.addEventListener("input", () => {
+                overlayValue.textContent = overlaySlider.value + "%";
+                overlayPercent = parseInt(overlaySlider.value);
+                updateResults();
+            });
+
+            // Tile size slider handler
+            const tileSlider = document.getElementById("tile-slider");
+            const tileValue = document.getElementById("tile-value");
+            tileSlider.addEventListener("input", () => {
+                tileValue.textContent =
+                    parseFloat(tileSlider.value).toFixed(1) + "cm";
+            });
+            tileSlider.addEventListener("change", () => {
+                tileSizeCm = parseFloat(tileSlider.value);
+                if (originalImage) {
+                    reprocessImage();
+                }
+            });
+
+            // Print size slider handler
+            const sizeSlider = document.getElementById("size-slider");
+            const sizeValue = document.getElementById("size-value");
+            sizeSlider.addEventListener("input", () => {
+                sizeValue.textContent =
+                    parseFloat(sizeSlider.value).toFixed(1) + "m";
+            });
+            sizeSlider.addEventListener("change", () => {
+                printSizeM = parseFloat(sizeSlider.value);
+                if (originalImage) {
+                    reprocessImage();
+                }
+            });
+
+            // Zoom slider handler
+            document
+                .getElementById("zoom-slider")
+                .addEventListener("input", updateZoom);
+
+            // Download button handler
+            document
+                .getElementById("download-btn")
+                .addEventListener("click", () => {
+                    const canvas = document.getElementById("output");
+                    const link = document.createElement("a");
+                    link.download = "mosaic.jpg";
+                    link.href = canvas.toDataURL("image/jpeg");
+                    link.click();
+                });
+
+            // Image upload handler
+            document
+                .getElementById("image-upload")
+                .addEventListener("change", (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            originalImage = document.createElement("canvas");
+                            originalImage.width = img.width;
+                            originalImage.height = img.height;
+                            originalImage.getContext("2d").drawImage(img, 0, 0);
+                            resetLabels();
+                            processFromImage(originalImage);
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+            // Reset labels to original text
+            const originalLabels = {
+                i1: "i1: Scaled to print size",
+                i2: "i2: Resized to tile multiples",
+                i3: "i3: Reduced to tile size",
+                i4: "i4: Expanded (nearest neighbor)",
+                i5: "i5: Grayscale of i3",
+                output: "Output",
+            };
+
+            function resetLabels() {
+                for (const [id, text] of Object.entries(originalLabels)) {
+                    document.getElementById(`label-${id}`).textContent = text;
+                }
+            }
+
+            function reprocessImage() {
+                if (!originalImage) return;
+                resetLabels();
+                processFromImage(originalImage);
+            }
+
+            // Helper to yield to UI
+            function nextFrame() {
+                return new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            async function processFromImage(srcImage) {
+                setBusy(true);
+                const totalStart = performance.now();
+                let t0 = performance.now();
+
+                // Update labels based on image orientation
+                updateSideLabels(srcImage.width, srcImage.height);
+
+                // Scale image to print size
+                setProgress(5, "Scaling to print size...");
+                await nextFrame();
+                const { scaledW, scaledH } = calculateScaledSize(
+                    srcImage.width,
+                    srcImage.height,
+                );
+                const i1 = resizeHighQuality(srcImage, scaledW, scaledH);
+
+                copyToCanvas(i1, "i1");
+                setTime("i1", performance.now() - t0);
+                console.log(
+                    `i1: ${i1.width}x${i1.height} (scaled to print size)`,
+                );
+
+                // Calculate tile size in pixels from cm
+                const { tileW, tileH } = calculateTileSize(i1.width, i1.height);
+                console.log(`Tile size: ${tileW}x${tileH}px (${tileSizeCm}cm)`);
+
+                // i2: Resize to nearest multiple of tile dimensions
+                setProgress(15, "Resizing to tile multiples...");
+                await nextFrame();
+                t0 = performance.now();
+                const newWidth = Math.round(i1.width / tileW) * tileW;
+                const newHeight = Math.round(i1.height / tileH) * tileH;
+                const i2 = resizeHighQuality(i1, newWidth, newHeight);
+                copyToCanvas(i2, "i2");
+                setTime("i2", performance.now() - t0);
+
+                // Calculate number of tiles
+                const numTilesX = i2.width / tileW;
+                const numTilesY = i2.height / tileH;
+                console.log(
+                    `i2: ${i2.width}x${i2.height} (${numTilesX}x${numTilesY} tiles)`,
+                );
+
+                // i3: Reduce to tile size
+                setProgress(30, "Reducing to tile size...");
+                await nextFrame();
+                t0 = performance.now();
+                const i3 = resizeHighQuality(i2, tileW, tileH);
+                copyToCanvas(i3, "i3");
+                setTime("i3", performance.now() - t0);
+                console.log(`i3: ${i3.width}x${i3.height} (tile size)`);
+
+                // For mosaic: reduce to numTiles (one pixel per tile)
+                setProgress(45, "Creating mosaic...");
+                await nextFrame();
+                t0 = performance.now();
+                const mosaicReduced = resizeHighQuality(
+                    i2,
+                    numTilesX,
+                    numTilesY,
+                );
+
+                // i4: Expand back to i2 size using nearest neighbor (mosaic)
+                const i4 = resizeNearestNeighbor(
+                    mosaicReduced,
+                    i2.width,
+                    i2.height,
+                );
+                copyToCanvas(i4, "i4");
+                setTime("i4", performance.now() - t0);
+                console.log(
+                    `i4: ${i4.width}x${i4.height} (cell size: ${tileW}x${tileH})`,
+                );
+
+                // i5: Convert i3 to grayscale
+                setProgress(60, "Converting to grayscale...");
+                await nextFrame();
+                t0 = performance.now();
+                const i5 = toGrayscale(i3);
+                copyToCanvas(i5, "i5");
+                setTime("i5", performance.now() - t0);
+                console.log(`i5: ${i5.width}x${i5.height}`);
+
+                // Create mosaic with overlay
+                setProgress(75, "Applying overlay blend...");
+                await nextFrame();
+                t0 = performance.now();
+                const result = overlayOnTiles(i4, i5, tileW, tileH);
+                console.log(`Mosaic: ${result.width}x${result.height}`);
+
+                // Store for output updates
+                storedResult = result;
+                storedI2 = i2;
+                storedTileW = tileW;
+                storedTileH = tileH;
+
+                // Generate output
+                setProgress(90, "Generating output...");
+                await nextFrame();
+                updateResults();
+                setTime("output", performance.now() - t0);
+
+                // Show total time
+                const totalTime = performance.now() - totalStart;
+                document.getElementById("total-time").textContent =
+                    `Total time: ${totalTime.toFixed(1)}ms`;
+
+                setProgress(100, "Complete");
+                setBusy(false);
+            }
+
+            async function processImage() {
+                const img = new Image();
+                img.src = "mona-lisa.jpg";
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+
+                // Store original image as canvas
+                originalImage = document.createElement("canvas");
+                originalImage.width = img.width;
+                originalImage.height = img.height;
+                originalImage.getContext("2d").drawImage(img, 0, 0);
+
+                processFromImage(originalImage);
+            }
+
+            processImage().catch((err) => {
+                console.error("Error processing image:", err);
+                document.body.innerHTML += `<p style="color: red;">Error: ${err.message}</p>`;
+            });
+        </script>
+    </body>
+</html>

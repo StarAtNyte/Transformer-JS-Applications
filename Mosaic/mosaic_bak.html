@@ -1,0 +1,1611 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Image Mosaic</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: #1a1a1a;
+                font-family: system-ui, sans-serif;
+                color: #fff;
+            }
+            h1 {
+                margin-top: 0;
+                margin-bottom: 20px;
+            }
+            .container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .stage {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .stage canvas {
+                max-width: 150px;
+                height: auto;
+                border: 2px solid #444;
+            }
+            .stage label {
+                margin-top: 8px;
+                font-size: 14px;
+                color: #aaa;
+            }
+            #output {
+                max-width: none;
+            }
+            .stage.full-width {
+                width: 100%;
+            }
+            .total-time {
+                margin-top: 10px;
+                font-size: 14px;
+                color: #fff;
+            }
+            .progress-container {
+                width: 100%;
+                height: 8px;
+                background: #333;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .progress-bar {
+                height: 100%;
+                width: 0%;
+                background: #2a6;
+                transition: width 0.1s ease-out;
+            }
+            .progress-text {
+                font-size: 12px;
+                color: #888;
+                margin: 5px 0 0 0;
+            }
+            body.busy,
+            body.busy * {
+                cursor: wait !important;
+            }
+            .grid-btn {
+                padding: 8px 16px;
+                border: 1px solid #444;
+                background: #333;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+            }
+            .grid-btn:hover {
+                background: #444;
+            }
+            .grid-btn.active {
+                background: #666;
+                border-color: #888;
+            }
+            .download-btn {
+                padding: 10px 20px;
+                border: 1px solid #444;
+                background: #2a6;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+                font-size: 14px;
+                width: 100%;
+            }
+            .download-btn:hover {
+                background: #3b7;
+            }
+            .info {
+                color: #666;
+                font-size: 12px;
+                margin: 0;
+            }
+            .right-panel .stage canvas {
+                max-width: none;
+                display: block;
+            }
+            .results-row {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .main-layout {
+                display: flex;
+                gap: 30px;
+                align-items: flex-start;
+            }
+            .left-panel {
+                flex-shrink: 0;
+                width: 320px;
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                position: sticky;
+                top: 20px;
+            }
+            .right-panel {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: calc(100vh - 100px);
+                padding: 20px;
+                box-sizing: border-box;
+            }
+            .right-panel .stage {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            .control-group {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .control-group label {
+                color: #aaa;
+                font-size: 14px;
+            }
+            .control-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .control-row input[type="range"] {
+                flex: 1;
+            }
+            .control-row span {
+                min-width: 50px;
+                color: #fff;
+            }
+            .grid-buttons {
+                display: flex;
+                gap: 8px;
+            }
+            #image-upload {
+                color: #fff;
+                font-size: 14px;
+            }
+            #image-upload::file-selector-button {
+                padding: 8px 16px;
+                border: 1px solid #444;
+                background: #333;
+                color: #fff;
+                cursor: pointer;
+                border-radius: 4px;
+                margin-right: 10px;
+            }
+            #image-upload::file-selector-button:hover {
+                background: #444;
+            }
+            #mode-select {
+                padding: 8px 12px;
+                border: 1px solid #444;
+                background: #333;
+                color: #fff;
+                border-radius: 4px;
+                font-size: 14px;
+                width: 100%;
+            }
+            .mode-controls {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .seed-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .seed-row span {
+                color: #fff;
+                font-family: monospace;
+            }
+            #loupe {
+                position: fixed;
+                width: 250px;
+                height: 250px;
+                border-radius: 50%;
+                border: 4px solid #fff;
+                box-shadow: 0 0 25px rgba(0,0,0,0.7), inset 0 0 30px rgba(0,0,0,0.4);
+                pointer-events: none;
+                display: none;
+                z-index: 1000;
+                overflow: hidden;
+                background: #000;
+            }
+            #loupe canvas {
+                width: 100%;
+                height: 100%;
+                image-rendering: pixelated;
+            }
+            #loupe-info {
+                position: absolute;
+                bottom: -30px;
+                left: 50%;
+                transform: translateX(-50%);
+                color: #fff;
+                font-size: 12px;
+                background: rgba(0,0,0,0.8);
+                padding: 4px 10px;
+                border-radius: 4px;
+                white-space: nowrap;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Image Mosaic Generator</h1>
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="control-group">
+                    <label>Image:</label>
+                    <input type="file" id="image-upload" accept="image/*" />
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="mode-select">
+                        <option value="classic">Classic Mosaic</option>
+                        <option value="cmyk">CMYK Halftone</option>
+                        <option value="quadtree">Quadtree Decomposition</option>
+                        <option value="pixelsort">Pixel Sorting</option>
+                        <option value="stroke">Stroke Painting</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label id="tile-label">Tile width:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="tile-slider"
+                            min="0.2"
+                            max="2"
+                            step="0.2"
+                            value="0.6"
+                        />
+                        <span id="tile-value">0.6cm</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label id="print-label">Print width:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="size-slider"
+                            min="0.6"
+                            max="2"
+                            step="0.2"
+                            value="1"
+                        />
+                        <span id="size-value">1m</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Zoom (display):</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="zoom-slider"
+                            min="5"
+                            max="500"
+                            step="5"
+                            value="100"
+                        />
+                        <span id="zoom-value">100%</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Grid:</label>
+                    <div class="grid-buttons">
+                        <button id="grid-none" class="grid-btn active">
+                            None
+                        </button>
+                        <button id="grid-white" class="grid-btn">White</button>
+                        <button id="grid-black" class="grid-btn">Black</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Original blend:</label>
+                    <div class="control-row">
+                        <input
+                            type="range"
+                            id="overlay-slider"
+                            min="0"
+                            max="100"
+                            step="10"
+                            value="30"
+                        />
+                        <span id="overlay-value">30%</span>
+                    </div>
+                </div>
+                <div id="cmyk-controls" class="mode-controls" style="display: none;">
+                    <div class="control-group">
+                        <label>Dot shape:</label>
+                        <div class="grid-buttons">
+                            <button class="grid-btn dot-shape-btn active" data-shape="circle">Circle</button>
+                            <button class="grid-btn dot-shape-btn" data-shape="square">Square</button>
+                            <button class="grid-btn dot-shape-btn" data-shape="diamond">Diamond</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="quadtree-controls" class="mode-controls" style="display: none;">
+                    <div class="control-group">
+                        <label>Max depth (higher = finer detail):</label>
+                        <div class="control-row">
+                            <input type="range" id="qt-depth-slider" min="4" max="12" step="1" value="9" />
+                            <span id="qt-depth-value">9</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Detail sensitivity (lower = more tiles):</label>
+                        <div class="control-row">
+                            <input type="range" id="qt-threshold-slider" min="2" max="80" step="2" value="12" />
+                            <span id="qt-threshold-value">12</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Border width:</label>
+                        <div class="control-row">
+                            <input type="range" id="qt-border-slider" min="0" max="4" step="0.5" value="1" />
+                            <span id="qt-border-value">1px</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Border color:</label>
+                        <div class="grid-buttons">
+                            <button class="grid-btn qt-border-btn active" data-color="#1a1a1a">Dark</button>
+                            <button class="grid-btn qt-border-btn" data-color="#ffffff">White</button>
+                            <button class="grid-btn qt-border-btn" data-color="#888888">Gray</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="pixelsort-controls" class="mode-controls" style="display: none;">
+                    <div class="control-group">
+                        <label>Sort direction:</label>
+                        <div class="grid-buttons">
+                            <button class="grid-btn ps-dir-btn active" data-dir="horizontal">Horizontal</button>
+                            <button class="grid-btn ps-dir-btn" data-dir="vertical">Vertical</button>
+                            <button class="grid-btn ps-dir-btn" data-dir="both">Both</button>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Sort by:</label>
+                        <div class="grid-buttons">
+                            <button class="grid-btn ps-metric-btn active" data-metric="brightness">Brightness</button>
+                            <button class="grid-btn ps-metric-btn" data-metric="hue">Hue</button>
+                            <button class="grid-btn ps-metric-btn" data-metric="saturation">Saturation</button>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Lower threshold (sort pixels above this):</label>
+                        <div class="control-row">
+                            <input type="range" id="ps-lower-slider" min="0" max="255" step="1" value="30" />
+                            <span id="ps-lower-value">30</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Upper threshold (sort pixels below this):</label>
+                        <div class="control-row">
+                            <input type="range" id="ps-upper-slider" min="0" max="255" step="1" value="220" />
+                            <span id="ps-upper-value">220</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="stroke-controls" class="mode-controls" style="display: none;">
+                    <div class="control-group">
+                        <label>Strokes per layer:</label>
+                        <div class="control-row">
+                            <input type="range" id="sp-count-slider" min="50" max="800" step="50" value="250" />
+                            <span id="sp-count-value">250</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Max stroke width:</label>
+                        <div class="control-row">
+                            <input type="range" id="sp-width-slider" min="4" max="35" step="1" value="18" />
+                            <span id="sp-width-value">18px</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Max stroke length:</label>
+                        <div class="control-row">
+                            <input type="range" id="sp-length-slider" min="20" max="120" step="5" value="60" />
+                            <span id="sp-length-value">60px</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Stroke opacity:</label>
+                        <div class="control-row">
+                            <input type="range" id="sp-opacity-slider" min="10" max="100" step="5" value="75" />
+                            <span id="sp-opacity-value">75%</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Layers:</label>
+                        <div class="grid-buttons">
+                            <button class="grid-btn sp-layers-btn" data-layers="1">1</button>
+                            <button class="grid-btn sp-layers-btn active" data-layers="3">3</button>
+                            <button class="grid-btn sp-layers-btn" data-layers="5">5</button>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Curvature:</label>
+                        <div class="control-row">
+                            <input type="range" id="sp-curve-slider" min="0" max="100" step="5" value="30" />
+                            <span id="sp-curve-value">30%</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="info">
+                    Print: 150 DPI. Sizes refer to the smaller side.
+                </p>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <p id="progress-text" class="progress-text"></p>
+                <div class="control-group">
+                    <button id="download-btn" class="download-btn">
+                        Download Result
+                    </button>
+                </div>
+                <div class="container">
+                    <div class="stage">
+                        <canvas id="i1"></canvas>
+                        <label id="label-i1">i1: Scaled to print size</label>
+                    </div>
+                    <div class="stage">
+                        <canvas id="i2"></canvas>
+                        <label id="label-i2"
+                            >i2: Resized to tile multiples</label
+                        >
+                    </div>
+                    <div class="stage">
+                        <canvas id="i3"></canvas>
+                        <label id="label-i3">i3: Reduced to tile size</label>
+                    </div>
+                    <div class="stage">
+                        <canvas id="i4"></canvas>
+                        <label id="label-i4"
+                            >i4: Expanded (nearest neighbor)</label
+                        >
+                    </div>
+                    <div class="stage">
+                        <canvas id="i5"></canvas>
+                        <label id="label-i5">i5: Grayscale of i3</label>
+                    </div>
+                </div>
+                <p id="total-time" class="total-time"></p>
+            </div>
+            <div class="right-panel">
+                <div class="stage full-width">
+                    <canvas id="output"></canvas>
+                    <label id="label-output">Output</label>
+                </div>
+            </div>
+        </div>
+
+        <div id="loupe">
+            <canvas id="loupe-canvas"></canvas>
+            <div id="loupe-info"></div>
+        </div>
+
+        <script>
+            const DPI = 150;
+            const CM_PER_INCH = 2.54;
+            const PIXELS_PER_CM = DPI / CM_PER_INCH;
+
+            let tileSizeCm = 0.6;
+            let printSizeM = 1.0;
+            let originalImage = null;
+            let smallerSide = "width"; // 'width' or 'height' based on image orientation
+            let currentMode = "classic";
+            let cmykParams = { dotShape: "circle" };
+            let quadtreeParams = { maxDepth: 9, threshold: 12, borderWidth: 1, borderColor: "#1a1a1a" };
+            let strokeParams = { strokeCount: 250, maxStrokeWidth: 18, maxStrokeLength: 60, opacity: 0.75, numLayers: 3, curvature: 0.3 };
+
+            // Seedable PRNG (mulberry32)
+            function mulberry32(a) {
+                return function () {
+                    a |= 0; a = a + 0x6D2B79F5 | 0;
+                    let t = Math.imul(a ^ a >>> 15, 1 | a);
+                    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+                };
+            }
+
+            // High-quality resize using canvas imageSmoothingQuality
+            function resizeHighQuality(srcCanvas, dstWidth, dstHeight) {
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = dstWidth;
+                dstCanvas.height = dstHeight;
+                const dstCtx = dstCanvas.getContext("2d");
+                dstCtx.imageSmoothingEnabled = true;
+                dstCtx.imageSmoothingQuality = "high";
+                dstCtx.drawImage(srcCanvas, 0, 0, dstWidth, dstHeight);
+                return dstCanvas;
+            }
+
+            // Nearest neighbor resize using native drawImage (GPU-accelerated)
+            function resizeNearestNeighbor(srcCanvas, dstWidth, dstHeight) {
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = dstWidth;
+                dstCanvas.height = dstHeight;
+                const dstCtx = dstCanvas.getContext("2d");
+                dstCtx.imageSmoothingEnabled = false;
+                dstCtx.drawImage(srcCanvas, 0, 0, dstWidth, dstHeight);
+                return dstCanvas;
+            }
+
+            // Convert to grayscale as compact Uint8Array (one byte per pixel)
+            function toGrayscaleArray(srcCanvas) {
+                const ctx = srcCanvas.getContext("2d");
+                const data = ctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height).data;
+                const len = srcCanvas.width * srcCanvas.height;
+                const gray = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    const j = i * 4;
+                    gray[i] = (77 * data[j] + 150 * data[j + 1] + 29 * data[j + 2]) >> 8;
+                }
+                return gray;
+            }
+
+            // Render a grayscale Uint8Array back to a canvas (for preview display)
+            function grayArrayToCanvas(gray, width, height) {
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                const imgData = ctx.createImageData(width, height);
+                const dst = imgData.data;
+                for (let i = 0; i < gray.length; i++) {
+                    const j = i * 4;
+                    dst[j] = dst[j + 1] = dst[j + 2] = gray[i];
+                    dst[j + 3] = 255;
+                }
+                ctx.putImageData(imgData, 0, 0);
+                return canvas;
+            }
+
+            // RGB to HSL conversion
+            function rgbToHsl(r, g, b) {
+                r /= 255;
+                g /= 255;
+                b /= 255;
+                const max = Math.max(r, g, b),
+                    min = Math.min(r, g, b);
+                let h,
+                    s,
+                    l = (max + min) / 2;
+
+                if (max === min) {
+                    h = s = 0;
+                } else {
+                    const d = max - min;
+                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                    switch (max) {
+                        case r:
+                            h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+                            break;
+                        case g:
+                            h = ((b - r) / d + 2) / 6;
+                            break;
+                        case b:
+                            h = ((r - g) / d + 4) / 6;
+                            break;
+                    }
+                }
+                return [h, s, l];
+            }
+
+            // HSL to RGB conversion
+            function hslToRgb(h, s, l) {
+                let r, g, b;
+                if (s === 0) {
+                    r = g = b = l;
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1 / 6) return p + (q - p) * 6 * t;
+                        if (t < 1 / 2) return q;
+                        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                        return p;
+                    };
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1 / 3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1 / 3);
+                }
+                return [
+                    Math.round(r * 255),
+                    Math.round(g * 255),
+                    Math.round(b * 255),
+                ];
+            }
+
+            // Overlay blend for luminosity (pegtop soft light formula)
+            function softLight(base, blend) {
+                return (1 - 2 * blend) * base * base + 2 * blend * base;
+            }
+
+            // Build mosaic directly from tile colors + grayscale pattern using per-tile LUT
+            // Skips the full-size i4 intermediate entirely
+            function buildMosaicDirect(mosaicCanvas, grayPattern, tileW, tileH, outW, outH) {
+                const numTilesX = mosaicCanvas.width;
+                const numTilesY = mosaicCanvas.height;
+                const mosaicData = mosaicCanvas.getContext("2d")
+                    .getImageData(0, 0, numTilesX, numTilesY).data;
+
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = outW;
+                dstCanvas.height = outH;
+                const dstCtx = dstCanvas.getContext("2d");
+                const dstImgData = dstCtx.createImageData(outW, outH);
+                const dst32 = new Uint32Array(dstImgData.data.buffer);
+
+                // Detect endianness once
+                const endianTest = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer);
+                const isLE = endianTest[0] === 1;
+
+                const lut = new Uint32Array(256);
+
+                for (let ty = 0; ty < numTilesY; ty++) {
+                    for (let tx = 0; tx < numTilesX; tx++) {
+                        const mi = (ty * numTilesX + tx) * 4;
+                        const [h, s, lBase] = rgbToHsl(
+                            mosaicData[mi], mosaicData[mi + 1], mosaicData[mi + 2],
+                        );
+
+                        // Build 256-entry LUT for this tile
+                        for (let v = 0; v < 256; v++) {
+                            const newL = softLight(lBase, v / 255);
+                            const [lr, lg, lb] = hslToRgb(h, s, newL);
+                            lut[v] = isLE
+                                ? (255 << 24) | (lb << 16) | (lg << 8) | lr
+                                : (lr << 24) | (lg << 16) | (lb << 8) | 255;
+                        }
+
+                        // Fill tile pixels via LUT lookup
+                        const tileOffX = tx * tileW;
+                        const tileOffY = ty * tileH;
+                        for (let py = 0; py < tileH; py++) {
+                            const dstRow = (tileOffY + py) * outW + tileOffX;
+                            const patRow = py * tileW;
+                            for (let px = 0; px < tileW; px++) {
+                                dst32[dstRow + px] = lut[grayPattern[patRow + px]];
+                            }
+                        }
+                    }
+                }
+
+                dstCtx.putImageData(dstImgData, 0, 0);
+                return dstCanvas;
+            }
+
+            // CMYK Halftone — render image as rotated dot screens per channel
+            function buildCMYKHalftone(srcCanvas, cellSize, dotShape) {
+                const W = srcCanvas.width, H = srcCanvas.height;
+                const srcData = srcCanvas.getContext("2d").getImageData(0, 0, W, H).data;
+
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = W;
+                dstCanvas.height = H;
+                const dstCtx = dstCanvas.getContext("2d");
+                const dstImgData = dstCtx.createImageData(W, H);
+                const dst32 = new Uint32Array(dstImgData.data.buffer);
+
+                const endianTest = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer);
+                const isLE = endianTest[0] === 1;
+
+                // Standard CMYK screen angles (minimize moiré)
+                const cosA = [Math.cos(0.2618), Math.cos(1.3090), 1,              Math.cos(0.7854)];
+                const sinA = [Math.sin(0.2618), Math.sin(1.3090), 0,              Math.sin(0.7854)];
+                // 15°=0.2618  75°=1.3090  0°  45°=0.7854
+
+                const halfCell = cellSize / 2;
+                const maxR2 = halfCell * halfCell;
+
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        const si = (y * W + x) * 4;
+                        const rf = srcData[si] / 255;
+                        const gf = srcData[si + 1] / 255;
+                        const bf = srcData[si + 2] / 255;
+
+                        // RGB → CMYK
+                        const k = 1 - Math.max(rf, gf, bf);
+                        let c, m, yv;
+                        if (k >= 1) {
+                            c = m = yv = 0;
+                        } else {
+                            const invK = 1 / (1 - k);
+                            c = (1 - rf - k) * invK;
+                            m = (1 - gf - k) * invK;
+                            yv = (1 - bf - k) * invK;
+                        }
+                        const cmyk = [c, m, yv, k];
+
+                        // Check dot presence for each channel
+                        let outR = 255, outG = 255, outB = 255;
+
+                        for (let ch = 0; ch < 4; ch++) {
+                            const intensity = cmyk[ch];
+                            if (intensity < 0.004) continue;
+
+                            const rx = x * cosA[ch] + y * sinA[ch];
+                            const ry = -x * sinA[ch] + y * cosA[ch];
+
+                            const dx = rx - Math.round(rx / cellSize) * cellSize;
+                            const dy = ry - Math.round(ry / cellSize) * cellSize;
+
+                            let inside;
+                            if (dotShape === "circle") {
+                                inside = dx * dx + dy * dy < maxR2 * intensity;
+                            } else if (dotShape === "square") {
+                                const hs = halfCell * Math.sqrt(intensity);
+                                inside = Math.abs(dx) < hs && Math.abs(dy) < hs;
+                            } else {
+                                const hd = halfCell * Math.sqrt(intensity) * 1.15;
+                                inside = Math.abs(dx) + Math.abs(dy) < hd;
+                            }
+
+                            if (inside) {
+                                // Subtractive: each ink absorbs its complement
+                                if (ch === 0) outR = 0;       // Cyan absorbs red
+                                else if (ch === 1) outG = 0;  // Magenta absorbs green
+                                else if (ch === 2) outB = 0;  // Yellow absorbs blue
+                                else { outR = 0; outG = 0; outB = 0; } // K absorbs all
+                            }
+                        }
+
+                        dst32[y * W + x] = isLE
+                            ? (255 << 24) | (outB << 16) | (outG << 8) | outR
+                            : (outR << 24) | (outG << 16) | (outB << 8) | 255;
+                    }
+                }
+
+                dstCtx.putImageData(dstImgData, 0, 0);
+                return dstCanvas;
+            }
+
+            // Quadtree Decomposition — adaptive subdivision based on color variance
+            function buildQuadtree(srcCanvas, maxDepth, threshold, borderWidth, borderColor) {
+                const W = srcCanvas.width, H = srcCanvas.height;
+                const srcCtx = srcCanvas.getContext("2d");
+                const srcData = srcCtx.getImageData(0, 0, W, H).data;
+
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = W;
+                dstCanvas.height = H;
+                const dstCtx = dstCanvas.getContext("2d");
+
+                // Pre-build integral image for fast average color computation
+                // Each entry: [sumR, sumG, sumB, sumR2, sumG2, sumB2, count]
+                const integralR = new Float64Array((W + 1) * (H + 1));
+                const integralG = new Float64Array((W + 1) * (H + 1));
+                const integralB = new Float64Array((W + 1) * (H + 1));
+                const integralR2 = new Float64Array((W + 1) * (H + 1));
+                const integralG2 = new Float64Array((W + 1) * (H + 1));
+                const integralB2 = new Float64Array((W + 1) * (H + 1));
+
+                const stride = W + 1;
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        const si = (y * W + x) * 4;
+                        const r = srcData[si], g = srcData[si + 1], b = srcData[si + 2];
+                        const idx = (y + 1) * stride + (x + 1);
+                        const top = y * stride + (x + 1);
+                        const left = (y + 1) * stride + x;
+                        const topLeft = y * stride + x;
+
+                        integralR[idx] = r + integralR[top] + integralR[left] - integralR[topLeft];
+                        integralG[idx] = g + integralG[top] + integralG[left] - integralG[topLeft];
+                        integralB[idx] = b + integralB[top] + integralB[left] - integralB[topLeft];
+                        integralR2[idx] = r * r + integralR2[top] + integralR2[left] - integralR2[topLeft];
+                        integralG2[idx] = g * g + integralG2[top] + integralG2[left] - integralG2[topLeft];
+                        integralB2[idx] = b * b + integralB2[top] + integralB2[left] - integralB2[topLeft];
+                    }
+                }
+
+                function regionStats(x0, y0, x1, y1) {
+                    const n = (x1 - x0) * (y1 - y0);
+                    if (n === 0) return { avgR: 0, avgG: 0, avgB: 0, variance: 0 };
+
+                    const br = (y1) * stride + x1;
+                    const tr = y0 * stride + x1;
+                    const bl = (y1) * stride + x0;
+                    const tl = y0 * stride + x0;
+
+                    const sumR = integralR[br] - integralR[tr] - integralR[bl] + integralR[tl];
+                    const sumG = integralG[br] - integralG[tr] - integralG[bl] + integralG[tl];
+                    const sumB = integralB[br] - integralB[tr] - integralB[bl] + integralB[tl];
+                    const sumR2 = integralR2[br] - integralR2[tr] - integralR2[bl] + integralR2[tl];
+                    const sumG2 = integralG2[br] - integralG2[tr] - integralG2[bl] + integralG2[tl];
+                    const sumB2 = integralB2[br] - integralB2[tr] - integralB2[bl] + integralB2[tl];
+
+                    const avgR = sumR / n;
+                    const avgG = sumG / n;
+                    const avgB = sumB / n;
+
+                    const varR = sumR2 / n - avgR * avgR;
+                    const varG = sumG2 / n - avgG * avgG;
+                    const varB = sumB2 / n - avgB * avgB;
+                    const variance = Math.sqrt((varR + varG + varB) / 3);
+
+                    return { avgR, avgG, avgB, variance };
+                }
+
+                // Collect all leaf rectangles via iterative stack
+                const leaves = [];
+                const stack = [{ x0: 0, y0: 0, x1: W, y1: H, depth: 0 }];
+
+                while (stack.length > 0) {
+                    const { x0, y0, x1, y1, depth } = stack.pop();
+                    const w = x1 - x0, h = y1 - y0;
+
+                    if (w < 2 || h < 2) {
+                        const stats = regionStats(x0, y0, x1, y1);
+                        leaves.push({ x0, y0, x1, y1, r: stats.avgR, g: stats.avgG, b: stats.avgB });
+                        continue;
+                    }
+
+                    const stats = regionStats(x0, y0, x1, y1);
+
+                    if (depth >= maxDepth || stats.variance < threshold) {
+                        leaves.push({ x0, y0, x1, y1, r: stats.avgR, g: stats.avgG, b: stats.avgB });
+                    } else {
+                        const mx = x0 + (w >> 1);
+                        const my = y0 + (h >> 1);
+                        stack.push({ x0,  y0,  x1: mx, y1: my, depth: depth + 1 });
+                        stack.push({ x0: mx, y0,  x1,    y1: my, depth: depth + 1 });
+                        stack.push({ x0,  y0: my, x1: mx, y1,    depth: depth + 1 });
+                        stack.push({ x0: mx, y0: my, x1,    y1,    depth: depth + 1 });
+                    }
+                }
+
+                // Render leaves
+                const hasBorder = borderWidth > 0;
+                const inset = hasBorder ? Math.ceil(borderWidth / 2) : 0;
+
+                // Fill background with border color if borders enabled
+                if (hasBorder) {
+                    dstCtx.fillStyle = borderColor;
+                    dstCtx.fillRect(0, 0, W, H);
+                }
+
+                for (const leaf of leaves) {
+                    const r = Math.round(leaf.r);
+                    const g = Math.round(leaf.g);
+                    const b = Math.round(leaf.b);
+                    dstCtx.fillStyle = `rgb(${r},${g},${b})`;
+
+                    if (hasBorder) {
+                        dstCtx.fillRect(
+                            leaf.x0 + inset,
+                            leaf.y0 + inset,
+                            Math.max(1, leaf.x1 - leaf.x0 - borderWidth),
+                            Math.max(1, leaf.y1 - leaf.y0 - borderWidth),
+                        );
+                    } else {
+                        dstCtx.fillRect(leaf.x0, leaf.y0, leaf.x1 - leaf.x0, leaf.y1 - leaf.y0);
+                    }
+                }
+
+                return dstCanvas;
+            }
+
+            // Stroke-Based Painting — simulate brushstrokes following gradient flow
+            async function buildStrokePainting(srcCanvas, params) {
+                const { strokeCount, maxStrokeWidth, maxStrokeLength, opacity, numLayers, curvature } = params;
+                const minStrokeWidth = 2;
+                const minStrokeLength = Math.max(5, Math.round(maxStrokeLength * 0.2));
+                const W = srcCanvas.width, H = srcCanvas.height;
+
+                const dstCanvas = document.createElement("canvas");
+                dstCanvas.width = W;
+                dstCanvas.height = H;
+                const ctx = dstCanvas.getContext("2d");
+
+                // Underpainting: original at low opacity as a base wash
+                ctx.globalAlpha = 0.35;
+                ctx.drawImage(srcCanvas, 0, 0);
+                ctx.globalAlpha = 1.0;
+
+                // Source pixels for accurate color sampling at full resolution
+                const srcData = srcCanvas.getContext("2d").getImageData(0, 0, W, H).data;
+
+                // Compute Sobel gradient on a ≤2000px downscale to keep memory reasonable
+                const maxGradDim = 2000;
+                const gradScale = Math.min(1, maxGradDim / Math.max(W, H));
+                const GW = Math.max(3, Math.round(W * gradScale));
+                const GH = Math.max(3, Math.round(H * gradScale));
+                const gradSrc = gradScale < 1 ? resizeHighQuality(srcCanvas, GW, GH) : srcCanvas;
+                const gradData = gradSrc.getContext("2d").getImageData(0, 0, GW, GH).data;
+
+                const lum = new Float32Array(GW * GH);
+                for (let i = 0; i < GW * GH; i++) {
+                    const j = i * 4;
+                    lum[i] = (77 * gradData[j] + 150 * gradData[j + 1] + 29 * gradData[j + 2]) / 65280;
+                }
+
+                const gxArr = new Float32Array(GW * GH);
+                const gyArr = new Float32Array(GW * GH);
+                for (let cy = 1; cy < GH - 1; cy++) {
+                    for (let cx = 1; cx < GW - 1; cx++) {
+                        const i = cy * GW + cx;
+                        gxArr[i] = -lum[i - GW - 1] + lum[i - GW + 1]
+                                   - 2 * lum[i - 1]  + 2 * lum[i + 1]
+                                   - lum[i + GW - 1] + lum[i + GW + 1];
+                        gyArr[i] = -lum[i - GW - 1] - 2 * lum[i - GW] - lum[i - GW + 1]
+                                   + lum[i + GW - 1] + 2 * lum[i + GW] + lum[i + GW + 1];
+                    }
+                }
+
+                // Paint layers from coarse (large strokes) to fine (small strokes)
+                for (let layer = 0; layer < numLayers; layer++) {
+                    setProgress(65 + Math.round((layer / numLayers) * 22), `Painting layer ${layer + 1}/${numLayers}...`);
+                    await nextFrame();
+
+                    const t = numLayers > 1 ? layer / (numLayers - 1) : 0;
+                    // Width and length taper down in later (finer) layers
+                    const layerMaxW = minStrokeWidth + (maxStrokeWidth - minStrokeWidth) * (1 - t * 0.75);
+                    const layerMaxL = minStrokeLength + (maxStrokeLength - minStrokeLength) * (1 - t * 0.6);
+                    // Stroke count doubles each layer so finer passes achieve full coverage
+                    const layerCount = Math.round(strokeCount * Math.pow(2, layer));
+
+                    ctx.globalAlpha = opacity;
+                    ctx.lineCap = "round";
+                    ctx.lineJoin = "round";
+
+                    for (let s = 0; s < layerCount; s++) {
+                        const sx = Math.random() * W;
+                        const sy = Math.random() * H;
+
+                        // Sample gradient at downscaled coordinates
+                        const gpx = Math.max(1, Math.min(GW - 2, Math.floor(sx * gradScale)));
+                        const gpy = Math.max(1, Math.min(GH - 2, Math.floor(sy * gradScale)));
+                        const gpidx = gpy * GW + gpx;
+                        const gxv = gxArr[gpidx], gyv = gyArr[gpidx];
+                        const gradMag = Math.sqrt(gxv * gxv + gyv * gyv);
+
+                        // Stroke direction: tangent to gradient = perpendicular to edge normal
+                        const angle = gradMag < 0.003
+                            ? Math.random() * Math.PI * 2
+                            : Math.atan2(gxv, -gyv);
+
+                        // Width/length: narrow & short at sharp edges, wide & long in flat areas
+                        const edgeStrength = Math.min(gradMag * 6, 1);
+                        const strokeW = Math.max(minStrokeWidth, layerMaxW * (1 - edgeStrength * 0.6));
+                        const strokeL = minStrokeLength + (layerMaxL - minStrokeLength) * (1 - edgeStrength * 0.5);
+
+                        // Color sampled from full-resolution source
+                        const fpx = Math.max(0, Math.min(W - 1, Math.floor(sx)));
+                        const fpy = Math.max(0, Math.min(H - 1, Math.floor(sy)));
+                        const si4 = (fpy * W + fpx) * 4;
+                        const cr = srcData[si4], cg = srcData[si4 + 1], cb = srcData[si4 + 2];
+
+                        // Quadratic bezier with random perpendicular curvature
+                        const curvAmt = (Math.random() - 0.5) * 2 * curvature;
+                        const halfL = strokeL * 0.5;
+                        const x1 = sx - Math.cos(angle) * halfL;
+                        const y1 = sy - Math.sin(angle) * halfL;
+                        const x2 = sx + Math.cos(angle) * halfL;
+                        const y2 = sy + Math.sin(angle) * halfL;
+                        const cpX = sx + Math.cos(angle + Math.PI / 2) * curvAmt * strokeL * 0.4;
+                        const cpY = sy + Math.sin(angle + Math.PI / 2) * curvAmt * strokeL * 0.4;
+
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+                        ctx.lineWidth = strokeW;
+                        ctx.moveTo(x1, y1);
+                        ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.globalAlpha = 1.0;
+                return dstCanvas;
+            }
+
+            // Copy canvas to target element
+            function copyToCanvas(src, targetId) {
+                const target = document.getElementById(targetId);
+                target.width = src.width;
+                target.height = src.height;
+                target.getContext("2d").drawImage(src, 0, 0);
+            }
+
+            // Calculate tile size in pixels from cm, maintaining aspect ratio
+            function calculateTileSize(imgWidth, imgHeight) {
+                const aspectRatio = imgWidth / imgHeight;
+                const tileSizePx = Math.round(tileSizeCm * PIXELS_PER_CM);
+                let tileW, tileH;
+
+                if (imgWidth <= imgHeight) {
+                    tileW = tileSizePx;
+                    tileH = Math.round(tileSizePx / aspectRatio);
+                } else {
+                    tileH = tileSizePx;
+                    tileW = Math.round(tileSizePx * aspectRatio);
+                }
+
+                return { tileW, tileH };
+            }
+
+            // Calculate scaled image size based on smaller side
+            function calculateScaledSize(imgWidth, imgHeight) {
+                const printSizePx = Math.round(
+                    printSizeM * 100 * PIXELS_PER_CM,
+                );
+                const aspectRatio = imgWidth / imgHeight;
+
+                let scaledW, scaledH;
+                if (imgWidth <= imgHeight) {
+                    // Width is smaller side
+                    scaledW = printSizePx;
+                    scaledH = Math.round(printSizePx / aspectRatio);
+                } else {
+                    // Height is smaller side
+                    scaledH = printSizePx;
+                    scaledW = Math.round(printSizePx * aspectRatio);
+                }
+
+                return { scaledW, scaledH };
+            }
+
+            // Update labels based on image orientation
+            function updateSideLabels(imgWidth, imgHeight) {
+                smallerSide = imgWidth <= imgHeight ? "width" : "height";
+                document.getElementById("tile-label").textContent =
+                    `Tile ${smallerSide}:`;
+                document.getElementById("print-label").textContent =
+                    `Print ${smallerSide}:`;
+            }
+
+            function setTime(id, ms) {
+                document.getElementById(`label-${id}`).textContent +=
+                    ` (${ms.toFixed(1)}ms)`;
+            }
+
+            function setProgress(percent, text) {
+                document.getElementById("progress-bar").style.width =
+                    percent + "%";
+                document.getElementById("progress-text").textContent = text;
+            }
+
+            function setBusy(busy) {
+                if (busy) {
+                    document.body.classList.add("busy");
+                    setProgress(0, "Starting...");
+                } else {
+                    document.body.classList.remove("busy");
+                }
+            }
+
+            // Store state for grid redraw
+            let storedResult = null; // for loupe
+            let storedI2 = null;
+            let storedTileW = 0;
+            let storedTileH = 0;
+            let currentGrid = "none";
+            let overlayPercent = 30;
+            // Reusable composite canvas (avoids allocating a new full-size canvas on every slider change)
+            const compositeCanvas = document.createElement("canvas");
+            const compositeCtx = compositeCanvas.getContext("2d");
+
+            function drawGrid(ctx, width, height, tileW, tileH, color) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                for (let x = tileW; x < width; x += tileW) {
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                }
+                for (let y = tileH; y < height; y += tileH) {
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                }
+                ctx.stroke();
+            }
+
+            // Zoom function
+            function updateZoom() {
+                const zoomSlider = document.getElementById("zoom-slider");
+                const zoomValue = document.getElementById("zoom-value");
+                const outputCanvas = document.getElementById("output");
+                const zoom = parseInt(zoomSlider.value) / 100;
+                zoomValue.textContent = zoomSlider.value + "%";
+                outputCanvas.style.width = outputCanvas.width * zoom + "px";
+                outputCanvas.style.height = outputCanvas.height * zoom + "px";
+            }
+
+            // Auto-fit zoom so full image is visible in the viewport
+            function autoFitZoom() {
+                const outputCanvas = document.getElementById("output");
+                if (!outputCanvas.width) return;
+                const availW = window.innerWidth - 380;
+                const availH = window.innerHeight - 60;
+                const fitZoom = Math.min(availW / outputCanvas.width, availH / outputCanvas.height, 1);
+                const snapped = Math.max(10, Math.floor(fitZoom * 100 / 10) * 10);
+                const zoomSlider = document.getElementById("zoom-slider");
+                zoomSlider.value = snapped;
+                updateZoom();
+            }
+
+            // Loupe functionality
+            const loupe = document.getElementById("loupe");
+            const loupeCanvas = document.getElementById("loupe-canvas");
+            loupeCanvas.width = 400;
+            loupeCanvas.height = 400;
+            const loupeCtx = loupeCanvas.getContext("2d");
+            const loupeInfo = document.getElementById("loupe-info");
+            const LOUPE_MAGNIFICATION = 60;
+
+            function updateLoupe(e) {
+                if (!storedResult) return;
+                const outputCanvas = document.getElementById("output");
+                const rect = outputCanvas.getBoundingClientRect();
+                const zoom = parseInt(document.getElementById("zoom-slider").value) / 100;
+                
+                const canvasX = (e.clientX - rect.left) / zoom;
+                const canvasY = (e.clientY - rect.top) / zoom;
+                
+                if (canvasX < 0 || canvasX >= outputCanvas.width || canvasY < 0 || canvasY >= outputCanvas.height) {
+                    loupe.style.display = "none";
+                    return;
+                }
+
+                loupe.style.display = "block";
+                
+                const srcSize = LOUPE_MAGNIFICATION;
+                const srcX = Math.floor(canvasX - srcSize / 2);
+                const srcY = Math.floor(canvasY - srcSize / 2);
+                
+                loupeCtx.imageSmoothingEnabled = false;
+                loupeCtx.clearRect(0, 0, 400, 400);
+                
+                const drawX = Math.max(0, Math.min(srcX, storedResult.width - srcSize));
+                const drawY = Math.max(0, Math.min(srcY, storedResult.height - srcSize));
+                const drawW = Math.min(srcSize, storedResult.width - drawX);
+                const drawH = Math.min(srcSize, storedResult.height - drawY);
+                
+                loupeCtx.drawImage(
+                    storedResult,
+                    drawX, drawY, drawW, drawH,
+                    0, 0, 400, 400
+                );
+
+                let loupeX = e.clientX + 25;
+                let loupeY = e.clientY + 25;
+                if (loupeX + 260 > window.innerWidth) loupeX = e.clientX - 275;
+                if (loupeY + 285 > window.innerHeight) loupeY = e.clientY - 285;
+                loupe.style.left = loupeX + "px";
+                loupe.style.top = loupeY + "px";
+
+                loupeInfo.textContent = `${Math.round(canvasX)}, ${Math.round(canvasY)}`;
+            }
+
+            document.getElementById("output").addEventListener("mousemove", updateLoupe);
+            document.getElementById("output").addEventListener("mouseleave", () => {
+                loupe.style.display = "none";
+            });
+
+            function updateResults() {
+                if (!storedResult || !storedI2) return;
+
+                // Resize composite canvas only when dimensions change
+                if (compositeCanvas.width !== storedResult.width || compositeCanvas.height !== storedResult.height) {
+                    compositeCanvas.width = storedResult.width;
+                    compositeCanvas.height = storedResult.height;
+                }
+
+                // Draw base result
+                compositeCtx.globalAlpha = 1.0;
+                compositeCtx.drawImage(storedResult, 0, 0);
+
+                // Apply original blend if > 0
+                if (overlayPercent > 0) {
+                    compositeCtx.globalAlpha = overlayPercent / 100;
+                    compositeCtx.drawImage(storedI2, 0, 0);
+                    compositeCtx.globalAlpha = 1.0;
+                }
+
+                // Draw grid if enabled
+                if (currentGrid !== "none") {
+                    drawGrid(
+                        compositeCtx,
+                        compositeCanvas.width,
+                        compositeCanvas.height,
+                        storedTileW,
+                        storedTileH,
+                        currentGrid,
+                    );
+                }
+
+                copyToCanvas(compositeCanvas, "output");
+
+                // Update label
+                const label = document.getElementById("label-output");
+                label.textContent =
+                    overlayPercent > 0
+                        ? `Output (${overlayPercent}% original)`
+                        : "Output (mosaic only)";
+
+                updateZoom();
+            }
+
+            // Grid button handlers
+            document.querySelectorAll("#grid-none, #grid-white, #grid-black").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll("#grid-none, #grid-white, #grid-black")
+                        .forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    if (btn.id === "grid-none") currentGrid = "none";
+                    else if (btn.id === "grid-white") currentGrid = "white";
+                    else if (btn.id === "grid-black") currentGrid = "black";
+                    updateResults();
+                });
+            });
+
+            // Mode selector handler
+            document.getElementById("mode-select").addEventListener("change", (e) => {
+                currentMode = e.target.value;
+                document.getElementById("cmyk-controls").style.display = currentMode === "cmyk" ? "" : "none";
+                document.getElementById("quadtree-controls").style.display = currentMode === "quadtree" ? "" : "none";
+                document.getElementById("pixelsort-controls").style.display = currentMode === "pixelsort" ? "" : "none";
+                document.getElementById("stroke-controls").style.display = currentMode === "stroke" ? "" : "none";
+                if (originalImage) reprocessImage();
+            });
+
+            // CMYK dot shape button handlers
+            document.querySelectorAll(".dot-shape-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll(".dot-shape-btn")
+                        .forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    cmykParams.dotShape = btn.dataset.shape;
+                    if (originalImage && currentMode === "cmyk") reprocessImage();
+                });
+            });
+
+            // Quadtree control handlers
+            document.getElementById("qt-depth-slider").addEventListener("input", (e) => {
+                document.getElementById("qt-depth-value").textContent = e.target.value;
+            });
+            document.getElementById("qt-depth-slider").addEventListener("change", (e) => {
+                quadtreeParams.maxDepth = parseInt(e.target.value);
+                if (originalImage && currentMode === "quadtree") reprocessImage();
+            });
+            document.getElementById("qt-threshold-slider").addEventListener("input", (e) => {
+                document.getElementById("qt-threshold-value").textContent = e.target.value;
+            });
+            document.getElementById("qt-threshold-slider").addEventListener("change", (e) => {
+                quadtreeParams.threshold = parseInt(e.target.value);
+                if (originalImage && currentMode === "quadtree") reprocessImage();
+            });
+            document.getElementById("qt-border-slider").addEventListener("input", (e) => {
+                document.getElementById("qt-border-value").textContent = parseFloat(e.target.value) + "px";
+            });
+            document.getElementById("qt-border-slider").addEventListener("change", (e) => {
+                quadtreeParams.borderWidth = parseFloat(e.target.value);
+                if (originalImage && currentMode === "quadtree") reprocessImage();
+            });
+            document.querySelectorAll(".qt-border-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll(".qt-border-btn")
+                        .forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    quadtreeParams.borderColor = btn.dataset.color;
+                    if (originalImage && currentMode === "quadtree") reprocessImage();
+                });
+            });
+
+            // Stroke painting control handlers
+            document.getElementById("sp-count-slider").addEventListener("input", (e) => {
+                document.getElementById("sp-count-value").textContent = e.target.value;
+            });
+            document.getElementById("sp-count-slider").addEventListener("change", (e) => {
+                strokeParams.strokeCount = parseInt(e.target.value);
+                if (originalImage && currentMode === "stroke") reprocessImage();
+            });
+            document.getElementById("sp-width-slider").addEventListener("input", (e) => {
+                document.getElementById("sp-width-value").textContent = e.target.value + "px";
+            });
+            document.getElementById("sp-width-slider").addEventListener("change", (e) => {
+                strokeParams.maxStrokeWidth = parseInt(e.target.value);
+                if (originalImage && currentMode === "stroke") reprocessImage();
+            });
+            document.getElementById("sp-length-slider").addEventListener("input", (e) => {
+                document.getElementById("sp-length-value").textContent = e.target.value + "px";
+            });
+            document.getElementById("sp-length-slider").addEventListener("change", (e) => {
+                strokeParams.maxStrokeLength = parseInt(e.target.value);
+                if (originalImage && currentMode === "stroke") reprocessImage();
+            });
+            document.getElementById("sp-opacity-slider").addEventListener("input", (e) => {
+                document.getElementById("sp-opacity-value").textContent = e.target.value + "%";
+            });
+            document.getElementById("sp-opacity-slider").addEventListener("change", (e) => {
+                strokeParams.opacity = parseInt(e.target.value) / 100;
+                if (originalImage && currentMode === "stroke") reprocessImage();
+            });
+            document.querySelectorAll(".sp-layers-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll(".sp-layers-btn")
+                        .forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    strokeParams.numLayers = parseInt(btn.dataset.layers);
+                    if (originalImage && currentMode === "stroke") reprocessImage();
+                });
+            });
+            document.getElementById("sp-curve-slider").addEventListener("input", (e) => {
+                document.getElementById("sp-curve-value").textContent = e.target.value + "%";
+            });
+            document.getElementById("sp-curve-slider").addEventListener("change", (e) => {
+                strokeParams.curvature = parseInt(e.target.value) / 100;
+                if (originalImage && currentMode === "stroke") reprocessImage();
+            });
+
+            // Overlay slider handler
+            const overlaySlider = document.getElementById("overlay-slider");
+            const overlayValue = document.getElementById("overlay-value");
+            overlaySlider.addEventListener("input", () => {
+                overlayValue.textContent = overlaySlider.value + "%";
+                overlayPercent = parseInt(overlaySlider.value);
+                updateResults();
+            });
+
+            // Tile size slider handler
+            const tileSlider = document.getElementById("tile-slider");
+            const tileValue = document.getElementById("tile-value");
+            tileSlider.addEventListener("input", () => {
+                tileValue.textContent =
+                    parseFloat(tileSlider.value).toFixed(1) + "cm";
+            });
+            tileSlider.addEventListener("change", () => {
+                tileSizeCm = parseFloat(tileSlider.value);
+                if (originalImage) {
+                    reprocessImage();
+                }
+            });
+
+            // Print size slider handler
+            const sizeSlider = document.getElementById("size-slider");
+            const sizeValue = document.getElementById("size-value");
+            sizeSlider.addEventListener("input", () => {
+                sizeValue.textContent =
+                    parseFloat(sizeSlider.value).toFixed(1) + "m";
+            });
+            sizeSlider.addEventListener("change", () => {
+                printSizeM = parseFloat(sizeSlider.value);
+                if (originalImage) {
+                    reprocessImage();
+                }
+            });
+
+            // Zoom slider handler
+            document
+                .getElementById("zoom-slider")
+                .addEventListener("input", updateZoom);
+
+            // Download button handler (async toBlob avoids blocking on large canvases)
+            document
+                .getElementById("download-btn")
+                .addEventListener("click", () => {
+                    const canvas = document.getElementById("output");
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.download = "mosaic.jpg";
+                        link.href = url;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    }, "image/jpeg");
+                });
+
+            // Image upload handler
+            document
+                .getElementById("image-upload")
+                .addEventListener("change", (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            originalImage = document.createElement("canvas");
+                            originalImage.width = img.width;
+                            originalImage.height = img.height;
+                            originalImage.getContext("2d").drawImage(img, 0, 0);
+                            resetLabels();
+                            processFromImage(originalImage);
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+            // Reset labels to original text
+            const originalLabels = {
+                i1: "i1: Scaled to print size",
+                i2: "i2: Resized to tile multiples",
+                i3: "i3: Reduced to tile size",
+                i4: "i4: Expanded (nearest neighbor)",
+                i5: "i5: Grayscale of i3",
+                output: "Output",
+            };
+
+            function resetLabels() {
+                for (const [id, text] of Object.entries(originalLabels)) {
+                    document.getElementById(`label-${id}`).textContent = text;
+                }
+            }
+
+            function reprocessImage() {
+                if (!originalImage) return;
+                resetLabels();
+                processFromImage(originalImage);
+            }
+
+            // Helper to yield to UI
+            function nextFrame() {
+                return new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            async function processFromImage(srcImage) {
+                setBusy(true);
+                const totalStart = performance.now();
+                let t0 = performance.now();
+
+                // Update labels based on image orientation
+                updateSideLabels(srcImage.width, srcImage.height);
+
+                // Scale image to print size
+                setProgress(5, "Scaling to print size...");
+                await nextFrame();
+                const { scaledW, scaledH } = calculateScaledSize(
+                    srcImage.width,
+                    srcImage.height,
+                );
+                const i1 = resizeHighQuality(srcImage, scaledW, scaledH);
+
+                copyToCanvas(i1, "i1");
+                setTime("i1", performance.now() - t0);
+                console.log(
+                    `i1: ${i1.width}x${i1.height} (scaled to print size)`,
+                );
+
+                // Calculate tile size in pixels from cm
+                const { tileW, tileH } = calculateTileSize(i1.width, i1.height);
+                console.log(`Tile size: ${tileW}x${tileH}px (${tileSizeCm}cm)`);
+
+                // i2: Resize to nearest multiple of tile dimensions
+                setProgress(15, "Resizing to tile multiples...");
+                await nextFrame();
+                t0 = performance.now();
+                const newWidth = Math.round(i1.width / tileW) * tileW;
+                const newHeight = Math.round(i1.height / tileH) * tileH;
+                const i2 = resizeHighQuality(i1, newWidth, newHeight);
+                copyToCanvas(i2, "i2");
+                setTime("i2", performance.now() - t0);
+
+                // Calculate number of tiles
+                const numTilesX = i2.width / tileW;
+                const numTilesY = i2.height / tileH;
+                console.log(
+                    `i2: ${i2.width}x${i2.height} (${numTilesX}x${numTilesY} tiles)`,
+                );
+
+                // i3: Reduce to tile size
+                setProgress(30, "Reducing to tile size...");
+                await nextFrame();
+                t0 = performance.now();
+                const i3 = resizeHighQuality(i2, tileW, tileH);
+                copyToCanvas(i3, "i3");
+                setTime("i3", performance.now() - t0);
+                console.log(`i3: ${i3.width}x${i3.height} (tile size)`);
+
+                // For mosaic: reduce to numTiles (one pixel per tile)
+                setProgress(45, "Creating mosaic...");
+                await nextFrame();
+                t0 = performance.now();
+                const mosaicReduced = resizeHighQuality(
+                    i2,
+                    numTilesX,
+                    numTilesY,
+                );
+
+                let result;
+
+                // i4: Small mosaic preview
+                const i4Preview = resizeNearestNeighbor(mosaicReduced, 300, Math.round(300 * numTilesY / numTilesX));
+                copyToCanvas(i4Preview, "i4");
+                setTime("i4", performance.now() - t0);
+
+                // i5: Grayscale pattern (used by both modes)
+                setProgress(55, "Converting to grayscale...");
+                await nextFrame();
+                t0 = performance.now();
+                const grayPattern = toGrayscaleArray(i3);
+                const i5Preview = grayArrayToCanvas(grayPattern, tileW, tileH);
+                copyToCanvas(i5Preview, "i5");
+                setTime("i5", performance.now() - t0);
+
+                if (currentMode === "cmyk") {
+                    setProgress(65, "Building CMYK halftone...");
+                    await nextFrame();
+                    t0 = performance.now();
+                    const cellSize = Math.round(tileSizeCm * PIXELS_PER_CM);
+                    result = buildCMYKHalftone(i2, cellSize, cmykParams.dotShape);
+                    console.log(`CMYK halftone: ${result.width}x${result.height} (cell=${cellSize}px, shape=${cmykParams.dotShape})`);
+                } else if (currentMode === "quadtree") {
+                    setProgress(65, "Building quadtree decomposition...");
+                    await nextFrame();
+                    t0 = performance.now();
+                    result = buildQuadtree(i2, quadtreeParams.maxDepth, quadtreeParams.threshold, quadtreeParams.borderWidth, quadtreeParams.borderColor);
+                    console.log(`Quadtree: ${result.width}x${result.height} (depth=${quadtreeParams.maxDepth}, threshold=${quadtreeParams.threshold})`);
+                } else if (currentMode === "stroke") {
+                    t0 = performance.now();
+                    result = await buildStrokePainting(i2, strokeParams);
+                    console.log(`Stroke painting: ${result.width}x${result.height} (layers=${strokeParams.numLayers}, count=${strokeParams.strokeCount})`);
+                } else {
+                    setProgress(75, "Building mosaic (LUT)...");
+                    await nextFrame();
+                    t0 = performance.now();
+                    result = buildMosaicDirect(mosaicReduced, grayPattern, tileW, tileH, i2.width, i2.height);
+                    console.log(`Mosaic: ${result.width}x${result.height}`);
+                }
+
+                // Store for output updates
+                storedResult = result;
+                storedI2 = i2;
+                storedTileW = tileW;
+                storedTileH = tileH;
+
+                // Generate output
+                setProgress(90, "Generating output...");
+                await nextFrame();
+                updateResults();
+                autoFitZoom();
+                setTime("output", performance.now() - t0);
+
+                // Show total time
+                const totalTime = performance.now() - totalStart;
+                document.getElementById("total-time").textContent =
+                    `Total time: ${totalTime.toFixed(1)}ms`;
+
+                setProgress(100, "Complete");
+                setBusy(false);
+            }
+
+            async function processImage() {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=600&q=80";
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+
+                // Store original image as canvas
+                originalImage = document.createElement("canvas");
+                originalImage.width = img.width;
+                originalImage.height = img.height;
+                originalImage.getContext("2d").drawImage(img, 0, 0);
+
+                processFromImage(originalImage);
+            }
+
+            processImage().catch((err) => {
+                console.error("Error processing image:", err);
+                document.body.innerHTML += `<p style="color: red;">Error: ${err.message}</p>`;
+            });
+        </script>
+    </body>
+</html>

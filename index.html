@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TFJS Apps</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f8f9fa;
@@ -13,40 +19,127 @@
             min-height: 100vh;
             padding: 24px;
         }
-        .container { max-width: 640px; margin: 0 auto; }
-        header { margin-bottom: 40px; }
-        h1 { font-size: 1.6rem; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
-        .subtitle { color: #666; font-size: 0.9rem; }
-        h2 {
-            font-size: 1rem;
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.4rem;
             font-weight: 600;
             color: #1a1a2e;
-            margin-bottom: 10px;
+            margin-bottom: 4px;
         }
-        .demos { margin-bottom: 32px; }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
         .demo-link {
-            display: block;
+            display: flex;
+            flex-direction: column;
             background: white;
-            border-radius: 8px;
-            padding: 14px 18px;
-            margin-bottom: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-radius: 10px;
+            padding: 16px 16px 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
             text-decoration: none;
             color: inherit;
-            transition: box-shadow 0.2s;
+            transition: box-shadow 0.15s;
         }
-        .demo-link:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .demo-link strong { display: block; font-size: 0.95rem; color: #1a1a2e; margin-bottom: 2px; }
-        .demo-link span { font-size: 0.82rem; color: #666; }
-        footer {
-            margin-top: 40px;
+
+        .demo-link:hover {
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+        }
+
+        .demo-link strong {
+            display: block;
+            font-size: 0.95rem;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .demo-link .desc {
             font-size: 0.8rem;
+            color: #888;
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        .tag {
+            margin-top: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6366f1;
+        }
+
+        .section-heading {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #bbb;
+            margin: 32px 0 10px;
+        }
+
+        .soon-card {
+            display: flex;
+            flex-direction: column;
+            background: #f0f0f0;
+            border-radius: 10px;
+            padding: 16px 16px 12px;
+            color: inherit;
+            cursor: default;
+        }
+
+        .soon-card strong {
+            display: block;
+            font-size: 0.9rem;
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .soon-card .desc {
+            font-size: 0.78rem;
+            color: #bbb;
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        .soon-card .tag {
+            color: #bbb;
+        }
+
+        footer {
+            margin-top: 24px;
+            font-size: 0.78rem;
             color: #999;
         }
-        footer a { color: #6366f1; text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
+
+        footer a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -54,29 +147,258 @@
             <p class="subtitle">ML demos that run in the browser</p>
         </header>
 
-        <div class="demos">
-            <h2>DINOv3</h2>
+        <div class="grid">
             <a class="demo-link" href="Dinov3/index.html">
                 <strong>Feature Explorer</strong>
-                <span>Patch similarity heatmap for a single image</span>
+                <span class="desc">Patch similarity heatmap for a single image</span>
+                <span class="tag">DINOv3</span>
             </a>
             <a class="demo-link" href="Dinov3/correspondence.html">
                 <strong>Cross-Image Correspondence</strong>
-                <span>Find matching patches between two images</span>
+                <span class="desc">Find matching patches between two images</span>
+                <span class="tag">DINOv3</span>
             </a>
-        </div>
-
-        <div class="demos">
-            <h2>Depth Anything v3</h2>
             <a class="demo-link" href="DepthAnything/index.html">
                 <strong>Depth Estimation</strong>
-                <span>Upload an image, get a colorized depth map</span>
+                <span class="desc">Upload an image, get a colorized depth map</span>
+                <span class="tag">Depth Anything v3</span>
             </a>
+            <a class="demo-link" href="FaceParsing/index.html">
+                <strong>FaceParser</strong>
+                <span class="desc">Semantic face segmentation powered by SegFormer</span>
+                <span class="tag">Face Parsing</span>
+            </a>
+            <a class="demo-link" href="ObjectDetection/index.html">
+                <strong>ObjectDetect</strong>
+                <span class="desc">Real-time object detection in the browser</span>
+                <span class="tag">Object Detection</span>
+            </a>
+            <a class="demo-link" href="VL/index.html">
+                <strong>Vision Language</strong>
+                <span class="desc">Image understanding powered by Transformers.js</span>
+                <span class="tag">Vision Language</span>
+            </a>
+            <a class="demo-link" href="FastVLM/dist/index.html">
+                <strong>FastVLM</strong>
+                <span class="desc">Fast vision-language model with WebGPU acceleration</span>
+                <span class="tag">Vision Language</span>
+            </a>
+            <a class="demo-link" href="DPR/index.html">
+                <strong>Portrait Relighting</strong>
+                <span class="desc">Change portrait lighting direction from a single image</span>
+                <span class="tag">Relighting</span>
+            </a>
+            <!-- <a class="demo-link" href="Mosaic/mosaic.html">
+                <strong>Image Mosaic Generator</strong>
+                <span class="desc">Generate image mosaics in the browser</span>
+                <span class="tag">Mosaic</span>
+            </a> -->
+        </div>
+
+        <p class="section-heading">Coming Soon</p>
+        <div class="grid">
+            <div class="soon-card">
+                <strong>Video Relighting</strong>
+                <span class="desc">Real-time 3D-aware portrait relighting at 33 FPS</span>
+                <span class="tag">Relighting</span>
+            </div>
+            <div class="soon-card">
+                <strong>Universal Relighting</strong>
+                <span class="desc">Relight any object using HDR environment maps</span>
+                <span class="tag">Relighting</span>
+            </div>
+            <div class="soon-card">
+                <strong>SVBRDF Estimation</strong>
+                <span class="desc">Estimate PBR material maps (albedo, normal, roughness) from one photo</span>
+                <span class="tag">Relighting</span>
+            </div>
+            <div class="soon-card">
+                <strong>Image Demoiréing</strong>
+                <span class="desc">Remove moire patterns from screen photos up to 4K</span>
+                <span class="tag">Restoration</span>
+            </div>
+            <div class="soon-card">
+                <strong>GPEN</strong>
+                <span class="desc">Blind face restoration, especially for very degraded inputs</span>
+                <span class="tag">Face Restoration</span>
+            </div>
+            <div class="soon-card">
+                <strong>Apple NeuralHash</strong>
+                <span class="desc">Perceptual hashing robust to resize, compression &amp; edits</span>
+                <span class="tag">Perceptual Hashing</span>
+            </div>
+            <div class="soon-card">
+                <strong>Informative Drawings</strong>
+                <span class="desc">Convert any photo into clean contour line art</span>
+                <span class="tag">Line Art</span>
+            </div>
+            <div class="soon-card">
+                <strong>Neural Line Art Vectorization</strong>
+                <span class="desc">Convert raster line-art directly to clean vector SVG</span>
+                <span class="tag">Line Art</span>
+            </div>
+            <div class="soon-card">
+                <strong>Virtual Sketching</strong>
+                <span class="desc">Photo to vector strokes, sketch simplification &amp; vectorization</span>
+                <span class="tag">Line Art</span>
+            </div>
+            <div class="soon-card">
+                <strong>Handwriting Synthesis</strong>
+                <span class="desc">Generate realistic cursive handwriting strokes from text input</span>
+                <span class="tag">Handwriting</span>
+            </div>
+            <a class="demo-link" href="NeuralPainting/index.html">
+                <strong>Neural Painter</strong>
+                <span class="desc">Decompose photos into editable paintbrush stroke parameters</span>
+                <span class="tag">Generative Art</span>
+            </a>
+            <div class="soon-card">
+                <strong>Aesthetic Assessment</strong>
+                <span class="desc">Rate photo quality and aesthetic appeal with NIMA</span>
+                <span class="tag">Assessment</span>
+            </div>
+            <div class="soon-card">
+                <strong>Metric3D Depth</strong>
+                <span class="desc">Metric depth estimation with ViT backbone</span>
+                <span class="tag">Depth / 3D</span>
+            </div>
+            <div class="soon-card">
+                <strong>DETR</strong>
+                <span class="desc">End-to-end object detection with transformers</span>
+                <span class="tag">Object Detection</span>
+            </div>
+            <div class="soon-card">
+                <strong>YOLOv10</strong>
+                <span class="desc">Real-time object detection, no NMS required</span>
+                <span class="tag">Object Detection</span>
+            </div>
+            <div class="soon-card">
+                <strong>Grounding DINO</strong>
+                <span class="desc">Open-set detection with text prompts</span>
+                <span class="tag">Object Detection</span>
+            </div>
+            <div class="soon-card">
+                <strong>SAM3 Tracker</strong>
+                <span class="desc">Segment and track anything across frames</span>
+                <span class="tag">Tracking</span>
+            </div>
+            <div class="soon-card">
+                <strong>SegFormer ADE</strong>
+                <span class="desc">Semantic scene segmentation on ADE20K</span>
+                <span class="tag">Segmentation</span>
+            </div>
+            <div class="soon-card">
+                <strong>BiRefNet</strong>
+                <span class="desc">High-resolution background removal &amp; matting</span>
+                <span class="tag">Segmentation</span>
+            </div>
+            <div class="soon-card">
+                <strong>MODNet</strong>
+                <span class="desc">Lightweight real-time portrait matting</span>
+                <span class="tag">Segmentation</span>
+            </div>
+            <div class="soon-card">
+                <strong>U²-Net</strong>
+                <span class="desc">Salient object &amp; human/clothing segmentation</span>
+                <span class="tag">Segmentation</span>
+            </div>
+            <div class="soon-card">
+                <strong>ISNet Anime</strong>
+                <span class="desc">Anime character segmentation and extraction</span>
+                <span class="tag">Segmentation</span>
+            </div>
+            <div class="soon-card">
+                <strong>Swin2SR ×2</strong>
+                <span class="desc">Classical image super-resolution at 2×</span>
+                <span class="tag">Super Resolution</span>
+            </div>
+            <div class="soon-card">
+                <strong>Swin2SR ×4</strong>
+                <span class="desc">Real-world super-resolution at 4× with BSRGAN</span>
+                <span class="tag">Super Resolution</span>
+            </div>
+            <div class="soon-card">
+                <strong>DeOldify</strong>
+                <span class="desc">Colorize black &amp; white photos and video</span>
+                <span class="tag">Colorization</span>
+            </div>
+            <div class="soon-card">
+                <strong>DDColor</strong>
+                <span class="desc">Dual-decoder colorization for grayscale images</span>
+                <span class="tag">Colorization</span>
+            </div>
+            <div class="soon-card">
+                <strong>Style Transfer</strong>
+                <span class="desc">Apply artistic styles in real time</span>
+                <span class="tag">Style Transfer</span>
+            </div>
+            <div class="soon-card">
+                <strong>AnimeGANv2</strong>
+                <span class="desc">Convert photos to anime-style artwork</span>
+                <span class="tag">Style Transfer</span>
+            </div>
+            <div class="soon-card">
+                <strong>DocShadow</strong>
+                <span class="desc">Remove shadows from scanned documents</span>
+                <span class="tag">Document</span>
+            </div>
+            <div class="soon-card">
+                <strong>ViT Classifier</strong>
+                <span class="desc">Image classification with Vision Transformer</span>
+                <span class="tag">Classification</span>
+            </div>
+            <div class="soon-card">
+                <strong>MobileViT</strong>
+                <span class="desc">Lightweight mobile vision transformer</span>
+                <span class="tag">Classification</span>
+            </div>
+            <div class="soon-card">
+                <strong>ResNet-50</strong>
+                <span class="desc">Classic deep residual network classifier</span>
+                <span class="tag">Classification</span>
+            </div>
+            <div class="soon-card">
+                <strong>DistilBERT Sentiment</strong>
+                <span class="desc">Fast sentiment analysis on text</span>
+                <span class="tag">NLP</span>
+            </div>
+            <div class="soon-card">
+                <strong>BGE Reranker</strong>
+                <span class="desc">Cross-encoder reranking for search results</span>
+                <span class="tag">NLP</span>
+            </div>
+            <div class="soon-card">
+                <strong>Grammar Synthesis</strong>
+                <span class="desc">Grammar correction and text synthesis</span>
+                <span class="tag">NLP</span>
+            </div>
+            <div class="soon-card">
+                <strong>SmolLM2</strong>
+                <span class="desc">360M instruction-following language model</span>
+                <span class="tag">Language Model</span>
+            </div>
+            <div class="soon-card">
+                <strong>Moonshine ASR</strong>
+                <span class="desc">Tiny speech recognition model</span>
+                <span class="tag">Audio</span>
+            </div>
+            <div class="soon-card">
+                <strong>Kokoro TTS</strong>
+                <span class="desc">82M text-to-speech synthesis model</span>
+                <span class="tag">Audio</span>
+            </div>
+            <div class="soon-card">
+                <strong>Chatterbox TTS</strong>
+                <span class="desc">Multilingual text-to-speech with ONNX</span>
+                <span class="tag">Audio</span>
+            </div>
         </div>
 
         <footer>
-            Uses <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>. All inference runs locally.
+            Uses <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>. All
+            inference runs locally.
         </footer>
     </div>
 </body>
+
 </html>

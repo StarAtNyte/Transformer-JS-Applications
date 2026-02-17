@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Portrait Relighter — DPR</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+            .grid {
+                display: grid;
+                gap: 24px;
+            }
+            @media (min-width: 900px) {
+                .grid {
+                    grid-template-columns: 320px 1fr;
+                }
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+            .dropzone {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 24px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .dropzone:hover,
+            .dropzone.dragover {
+                border-color: #6366f1;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.8rem;
+                margin-top: 4px;
+            }
+            #preview {
+                max-width: 100%;
+                max-height: 150px;
+                border-radius: 8px;
+                margin: 12px auto 0;
+                display: none;
+            }
+            .btn {
+                width: 100%;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 12px;
+            }
+            .btn-primary {
+                background: #6366f1;
+                color: white;
+            }
+            .btn-primary:hover:not(:disabled) {
+                background: #4f46e5;
+            }
+            .btn-primary:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 12px;
+                text-align: center;
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .progress {
+                margin-top: 12px;
+                display: none;
+            }
+            .progress-bar {
+                height: 4px;
+                background: #eee;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                width: 0%;
+                transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 4px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .model-status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            .model-status.loaded {
+                background: #f0fdf4;
+            }
+            .model-status.loading {
+                background: #fef3c7;
+            }
+            .model-status.error {
+                background: #fef2f2;
+            }
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b;
+                animation: pulse 1s infinite;
+            }
+            .model-status.error .dot {
+                background: #ef4444;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            .sample-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .sample-item {
+                aspect-ratio: 1;
+                border-radius: 6px;
+                overflow: hidden;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .sample-item:hover {
+                transform: scale(1.05);
+            }
+            .sample-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .canvas-wrap {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+                flex-direction: column;
+            }
+            .canvas-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+                width: 100%;
+            }
+            .canvas-col {
+                text-align: center;
+                min-width: 0;
+            }
+            .canvas-col canvas {
+                border-radius: 6px;
+                width: 100%;
+                height: auto;
+            }
+            .canvas-label {
+                font-size: 0.78rem;
+                color: #888;
+                margin-top: 6px;
+                font-weight: 500;
+            }
+            .canvas-placeholder {
+                color: #aaa;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 48px;
+            }
+            .canvas-placeholder svg {
+                width: 64px;
+                height: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            .light-control {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            #lightBall {
+                width: 140px;
+                height: 140px;
+                border-radius: 50%;
+                background: radial-gradient(
+                    circle at 50% 50%,
+                    #fff 0%,
+                    #ccc 60%,
+                    #666 100%
+                );
+                cursor: pointer;
+                position: relative;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                touch-action: none;
+            }
+            #lightDot {
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: #6366f1;
+                border: 2px solid white;
+                position: absolute;
+                transform: translate(-50%, -50%);
+                pointer-events: none;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            }
+            .light-info {
+                font-size: 0.78rem;
+                color: #999;
+                text-align: center;
+            }
+            .preset-row {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                justify-content: center;
+                margin-top: 4px;
+            }
+            .preset-btn {
+                padding: 4px 10px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                background: white;
+                font-size: 0.75rem;
+                cursor: pointer;
+                transition: all 0.15s;
+                color: #555;
+            }
+            .preset-btn:hover {
+                border-color: #6366f1;
+                color: #6366f1;
+            }
+            .viz-tip {
+                font-size: 0.78rem;
+                color: #888;
+                text-align: center;
+                margin-top: 10px;
+                line-height: 1.4;
+            }
+            .viz-tip strong {
+                color: #666;
+            }
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #6366f1;
+                text-decoration: none;
+            }
+            footer a:hover {
+                text-decoration: underline;
+            }
+            .model-select-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .model-select-group label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+            }
+            .model-select-group select {
+                flex: 1;
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 0.85rem;
+                background: white;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>Portrait Relighter</h1>
+                <p class="subtitle">
+                    Change portrait lighting direction using DPR — runs entirely
+                    in your browser
+                </p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <div class="model-select-group">
+                            <label for="modelSelect">Resolution:</label>
+                            <select id="modelSelect">
+                                <option value="512" selected>512 × 512</option>
+                                <option value="1024">1024 × 1024</option>
+                            </select>
+                        </div>
+
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            Upload Portrait
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input
+                                type="file"
+                                id="imageInput"
+                                accept="image/*"
+                                hidden
+                            />
+                            <p>Drop portrait here or click</p>
+                            <p class="hint">PNG, JPG, WebP</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+
+                        <button
+                            id="relightBtn"
+                            class="btn btn-primary"
+                            disabled
+                        >
+                            Relight
+                        </button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div
+                                    id="progressFill"
+                                    class="progress-fill"
+                                ></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                                ></path>
+                            </svg>
+                            Light Direction
+                        </h2>
+                        <div class="light-control">
+                            <div id="lightBall">
+                                <div id="lightDot"></div>
+                            </div>
+                            <p class="light-info">
+                                Click or drag to set light direction
+                            </p>
+                            <div class="preset-row">
+                                <button
+                                    class="preset-btn"
+                                    data-dx="0"
+                                    data-dy="-0.8"
+                                >
+                                    Top
+                                </button>
+                                <button
+                                    class="preset-btn"
+                                    data-dx="0"
+                                    data-dy="0.8"
+                                >
+                                    Bottom
+                                </button>
+                                <button
+                                    class="preset-btn"
+                                    data-dx="-0.8"
+                                    data-dy="0"
+                                >
+                                    Left
+                                </button>
+                                <button
+                                    class="preset-btn"
+                                    data-dx="0.8"
+                                    data-dy="0"
+                                >
+                                    Right
+                                </button>
+                                <button
+                                    class="preset-btn"
+                                    data-dx="0"
+                                    data-dy="0"
+                                >
+                                    Center
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                ></path>
+                            </svg>
+                            Sample Portraits
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2 style="margin-bottom: 16px">
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                ></path>
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                ></path>
+                            </svg>
+                            Result
+                        </h2>
+
+                        <div class="canvas-wrap">
+                            <div
+                                id="canvasPlaceholder"
+                                class="canvas-placeholder"
+                            >
+                                <svg
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <p>
+                                    Upload a portrait, set the light direction,
+                                    then click "Relight"
+                                </p>
+                            </div>
+                            <div
+                                id="canvasContainer"
+                                class="canvas-row"
+                                style="display: none"
+                            >
+                                <div class="canvas-col">
+                                    <canvas id="originalCanvas"></canvas>
+                                    <p class="canvas-label">Original</p>
+                                </div>
+                                <div class="canvas-col">
+                                    <canvas id="relitCanvas"></canvas>
+                                    <p class="canvas-label">Relit</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="viz-tip">
+                            <strong>💡 Tip:</strong> Drag the light dot on the
+                            ball to change the lighting direction, then click
+                            "Relight" again. The model works best with
+                            front-facing portraits.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>
+                    Powered by
+                    <a
+                        href="https://github.com/zhhoper/DPR"
+                        target="_blank"
+                        >DPR</a
+                    >
+                    &
+                    <a
+                        href="https://onnxruntime.ai/docs/tutorials/web/"
+                        target="_blank"
+                        >ONNX Runtime Web</a
+                    >
+                </p>
+            </footer>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
+        <script>
+            (function () {
+                "use strict";
+
+                ort.env.wasm.proxy = true;
+
+                const MODEL_DIR = "../PortableModels/onnx_models/dpr";
+
+                // ── DOM refs ──
+                const dropZone = document.getElementById("dropZone");
+                const imageInput = document.getElementById("imageInput");
+                const preview = document.getElementById("preview");
+                const relightBtn = document.getElementById("relightBtn");
+                const statusEl = document.getElementById("status");
+                const progress = document.getElementById("progress");
+                const progressFill = document.getElementById("progressFill");
+                const progressLabel = document.getElementById("progressLabel");
+                const progressPercent =
+                    document.getElementById("progressPercent");
+                const modelStatus = document.getElementById("modelStatus");
+                const modelStatusText =
+                    document.getElementById("modelStatusText");
+                const modelSelect = document.getElementById("modelSelect");
+                const sampleGallery =
+                    document.getElementById("sampleGallery");
+                const canvasPlaceholder =
+                    document.getElementById("canvasPlaceholder");
+                const canvasContainer =
+                    document.getElementById("canvasContainer");
+                const originalCanvas =
+                    document.getElementById("originalCanvas");
+                const relitCanvas = document.getElementById("relitCanvas");
+                const lightBall = document.getElementById("lightBall");
+                const lightDot = document.getElementById("lightDot");
+
+                const origCtx = originalCanvas.getContext("2d", {
+                    willReadFrequently: true,
+                });
+                const relitCtx = relitCanvas.getContext("2d");
+
+                let session = null;
+                let loadedModel = null;
+                let currentImageUrl = null;
+                let processing = false;
+
+                // Light direction as normalized coords (-1..1)
+                let lightX = 0;
+                let lightY = 0;
+
+                // ── Sample portraits (Unsplash face photos) ──
+                const SAMPLE_IMAGES = [
+                    "https://images.unsplash.com/photo-1541271696563-3be2f555fc4e?w=300&q=80",
+                    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&q=80",
+                    "https://images.unsplash.com/photo-1552374196-c4e7ffc6e126?w=300&q=80",
+                    "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=300&q=80",
+                    "https://images.unsplash.com/photo-1504257432389-52343af06ae3?w=300&q=80",
+                    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&q=80",
+                ];
+                sampleGallery.innerHTML = SAMPLE_IMAGES.map(
+                    (url, i) =>
+                        `<div class="sample-item" data-index="${i}">
+                        <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                    </div>`,
+                ).join("");
+
+                // ── Light ball interaction ──
+                updateLightDot();
+
+                function updateLightDot() {
+                    const r = lightBall.offsetWidth / 2;
+                    const cx = r + lightX * r * 0.85;
+                    const cy = r + lightY * r * 0.85;
+                    lightDot.style.left = cx + "px";
+                    lightDot.style.top = cy + "px";
+                    // Update ball gradient to visualize light
+                    const gx = 50 + lightX * 35;
+                    const gy = 50 + lightY * 35;
+                    lightBall.style.background = `radial-gradient(circle at ${gx}% ${gy}%, #fff 0%, #ccc 50%, #666 100%)`;
+                }
+
+                function handleLightInput(e) {
+                    const rect = lightBall.getBoundingClientRect();
+                    const r = rect.width / 2;
+                    let dx = ((e.clientX || e.touches[0].clientX) - rect.left - r) / r;
+                    let dy = ((e.clientY || e.touches[0].clientY) - rect.top - r) / r;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 1) {
+                        dx /= dist;
+                        dy /= dist;
+                    }
+                    lightX = dx;
+                    lightY = dy;
+                    updateLightDot();
+                }
+
+                let dragging = false;
+                lightBall.addEventListener("pointerdown", (e) => {
+                    dragging = true;
+                    lightBall.setPointerCapture(e.pointerId);
+                    handleLightInput(e);
+                });
+                lightBall.addEventListener("pointermove", (e) => {
+                    if (dragging) handleLightInput(e);
+                });
+                lightBall.addEventListener("pointerup", () => {
+                    dragging = false;
+                });
+
+                // Preset buttons
+                document.querySelectorAll(".preset-btn").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        lightX = parseFloat(btn.dataset.dx);
+                        lightY = parseFloat(btn.dataset.dy);
+                        updateLightDot();
+                    });
+                });
+
+                // ── Image handling ──
+                dropZone.addEventListener("click", () => imageInput.click());
+                dropZone.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add("dragover");
+                });
+                dropZone.addEventListener("dragleave", () =>
+                    dropZone.classList.remove("dragover"),
+                );
+                dropZone.addEventListener("drop", (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove("dragover");
+                    const f = e.dataTransfer.files[0];
+                    if (f && f.type.startsWith("image/")) handleImageFile(f);
+                });
+                imageInput.addEventListener("change", (e) => {
+                    if (e.target.files[0]) handleImageFile(e.target.files[0]);
+                });
+
+                function handleImageFile(file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        preview.src = e.target.result;
+                        preview.style.display = "block";
+                        currentImageUrl = e.target.result;
+                        updateRelightBtn();
+                    };
+                    reader.readAsDataURL(file);
+                }
+
+                sampleGallery.addEventListener("click", (e) => {
+                    const item = e.target.closest(".sample-item");
+                    if (item) {
+                        const url = SAMPLE_IMAGES[item.dataset.index];
+                        preview.src = url;
+                        preview.style.display = "block";
+                        currentImageUrl = url;
+                        updateRelightBtn();
+                    }
+                });
+
+                function updateRelightBtn() {
+                    relightBtn.disabled =
+                        !currentImageUrl || !session || processing;
+                }
+
+                // ── Model loading ──
+                modelSelect.addEventListener("change", () => loadModel());
+
+                async function loadModel() {
+                    const res = modelSelect.value;
+                    if (res === loadedModel && session) return;
+
+                    modelStatus.className = "model-status loading";
+                    modelStatusText.textContent = `Loading ${res} model...`;
+                    progress.style.display = "block";
+                    progressFill.style.width = "0%";
+                    progressLabel.textContent = "Downloading model...";
+                    progressPercent.textContent = "";
+                    relightBtn.disabled = true;
+
+                    try {
+                        if (session) {
+                            await session.release();
+                            session = null;
+                        }
+
+                        const baseName = `dpr_${res}`;
+                        const modelUrl = `${MODEL_DIR}/${baseName}.onnx`;
+                        const dataUrl = `${MODEL_DIR}/${baseName}.onnx.data`;
+
+                        progressLabel.textContent =
+                            "Downloading weights...";
+                        const dataResp = await fetch(dataUrl);
+                        if (!dataResp.ok)
+                            throw new Error(`Failed to fetch ${dataUrl}`);
+                        const dataBuf = await dataResp.arrayBuffer();
+                        progressFill.style.width = "80%";
+                        progressLabel.textContent =
+                            "Initializing model...";
+
+                        session = await ort.InferenceSession.create(modelUrl, {
+                            executionProviders: ["wasm"],
+                            externalData: [
+                                {
+                                    path: `${baseName}.onnx.data`,
+                                    data: new Uint8Array(dataBuf),
+                                },
+                            ],
+                        });
+                        loadedModel = res;
+
+                        modelStatus.className = "model-status loaded";
+                        modelStatusText.textContent = `DPR ${res} ready`;
+                        progress.style.display = "none";
+                        updateRelightBtn();
+                    } catch (err) {
+                        console.error("Model load error:", err);
+                        modelStatus.className = "model-status error";
+                        modelStatusText.textContent =
+                            "Failed to load: " + err.message;
+                        progress.style.display = "none";
+                        session = null;
+                        loadedModel = null;
+                    }
+                }
+                loadModel();
+
+                // ── SH lighting from 2D direction ──
+                // Builds a 9-coefficient SH vector that matches the training
+                // data format of DPR.  dx, dy ∈ [-1,1]; we derive dz on the
+                // unit hemisphere.  The base coefficients come from the DPR
+                // example lights (rotate_light_00..06) — we interpolate a
+                // directional light on the same manifold.
+                //
+                // DPR example lights (pre-scaled by 0.7):
+                const SH_PRESETS = [
+                    // 0 – front-right
+                    [1.0841, -0.4643, 0.0284, 0.6765, -0.3594, 0.0479, -0.2280, -0.0813, 0.2881],
+                    // 1 – right
+                    [1.0841, -0.4643, 0.5466, 0.3996, -0.2615, -0.2511, 0.0650, 0.3510, 0.1190],
+                    // 2 – front
+                    [1.0841, -0.4643, 0.6533, -0.1782, 0.0333, -0.3611, 0.3648, -0.0750, -0.0541],
+                    // 3 – left
+                    [1.0841, -0.4643, 0.2680, -0.6218, 0.3030, -0.1991, -0.0616, -0.3177, 0.1921],
+                    // 4 – back-left
+                    [1.0841, -0.4643, -0.3191, -0.5972, 0.3446, 0.1128, -0.1717, 0.2163, 0.2556],
+                    // 5 – back
+                    [1.0841, -0.4643, -0.6659, -0.1229, 0.1267, 0.3397, 0.3037, 0.2214, -0.0189],
+                    // 6 – back-right
+                    [1.0841, -0.4643, -0.5112, 0.4440, -0.1866, 0.3109, 0.2022, -0.3149, 0.0397],
+                ];
+
+                function dirToSH(dx, dy) {
+                    // Map (dx, dy) to an angle [0, 2π) around the light ring
+                    let angle = Math.atan2(dx, -dy); // top=0, clockwise
+                    if (angle < 0) angle += 2 * Math.PI;
+
+                    // Distance from center controls interpolation with a
+                    // neutral "frontal" light (preset 2)
+                    const dist = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+
+                    // Map angle to a fractional index into the 7 presets
+                    // (which go around 360°)
+                    const n = SH_PRESETS.length;
+                    const frac = (angle / (2 * Math.PI)) * n;
+                    const i0 = Math.floor(frac) % n;
+                    const i1 = (i0 + 1) % n;
+                    const t = frac - Math.floor(frac);
+
+                    // Interpolate between two adjacent presets
+                    const sh = new Float32Array(9);
+                    const frontal = SH_PRESETS[2];
+                    for (let k = 0; k < 9; k++) {
+                        const ring = SH_PRESETS[i0][k] * (1 - t) + SH_PRESETS[i1][k] * t;
+                        // Blend between frontal (center) and ring direction
+                        sh[k] = (frontal[k] * (1 - dist) + ring * dist) * 0.7;
+                    }
+                    return sh;
+                }
+
+                // ── Relight ──
+                relightBtn.addEventListener("click", () => relight());
+
+                async function relight() {
+                    if (!currentImageUrl || !session) return;
+                    processing = true;
+                    updateRelightBtn();
+                    statusEl.textContent = "Processing...";
+
+                    const res = parseInt(loadedModel);
+
+                    try {
+                        // Load image
+                        const img = new Image();
+                        img.crossOrigin = "anonymous";
+                        await new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = reject;
+                            img.src = currentImageUrl;
+                        });
+
+                        // Draw original at model resolution
+                        originalCanvas.width = res;
+                        originalCanvas.height = res;
+                        origCtx.drawImage(img, 0, 0, res, res);
+
+                        canvasPlaceholder.style.display = "none";
+                        canvasContainer.style.display = "flex";
+
+                        // Extract L channel using OpenCV-compatible Lab
+                        // OpenCV BGR2LAB: L in [0,255], a/b in [0,255] (128=neutral)
+                        const imageData = origCtx.getImageData(0, 0, res, res);
+                        const pixels = imageData.data;
+                        const n = res * res;
+                        const labL = new Float32Array(n);
+                        const labA = new Float32Array(n);
+                        const labB = new Float32Array(n);
+
+                        for (let i = 0; i < n; i++) {
+                            const R = pixels[i * 4];
+                            const G = pixels[i * 4 + 1];
+                            const B = pixels[i * 4 + 2];
+                            // sRGB → linear
+                            let lr = R / 255, lg = G / 255, lb = B / 255;
+                            lr = lr > 0.04045 ? Math.pow((lr + 0.055) / 1.055, 2.4) : lr / 12.92;
+                            lg = lg > 0.04045 ? Math.pow((lg + 0.055) / 1.055, 2.4) : lg / 12.92;
+                            lb = lb > 0.04045 ? Math.pow((lb + 0.055) / 1.055, 2.4) : lb / 12.92;
+                            // Linear RGB → XYZ (D65)
+                            let X = (0.4124564 * lr + 0.3575761 * lg + 0.1804375 * lb) / 0.95047;
+                            let Y = (0.2126729 * lr + 0.7151522 * lg + 0.0721750 * lb) / 1.00000;
+                            let Z = (0.0193339 * lr + 0.0770000 * lg + 0.9505140 * lb) / 1.08883;
+                            // XYZ → Lab
+                            const eps = 0.008856, kappa = 903.3;
+                            const fX = X > eps ? Math.cbrt(X) : (kappa * X + 16) / 116;
+                            const fY = Y > eps ? Math.cbrt(Y) : (kappa * Y + 16) / 116;
+                            const fZ = Z > eps ? Math.cbrt(Z) : (kappa * Z + 16) / 116;
+                            // L in [0,100], a/b roughly [-128,127]
+                            const L = 116 * fY - 16;
+                            const a = 500 * (fX - fY);
+                            const b = 200 * (fY - fZ);
+                            // OpenCV stores L as L*255/100, a/b as val+128
+                            labL[i] = (L * 255 / 100) / 255; // model input: [0,1]
+                            labA[i] = a;
+                            labB[i] = b;
+                        }
+
+                        // Build input tensors
+                        const imageTensor = new ort.Tensor("float32", labL, [1, 1, res, res]);
+                        const sh = dirToSH(lightX, lightY);
+                        const lightTensor = new ort.Tensor("float32", sh, [1, 9, 1, 1]);
+
+                        statusEl.textContent = "Running inference...";
+
+                        const results = await session.run({
+                            image: imageTensor,
+                            target_light: lightTensor,
+                        });
+
+                        const relitL = results.relit_image.data;
+
+                        // Reconstruct: replace L channel, keep original a,b
+                        relitCanvas.width = res;
+                        relitCanvas.height = res;
+                        const outData = relitCtx.createImageData(res, res);
+                        const outPx = outData.data;
+
+                        for (let i = 0; i < n; i++) {
+                            // New L from model output (0..1) → Lab L (0..100)
+                            const newL = Math.max(0, Math.min(1, relitL[i])) * 100;
+                            const a = labA[i];
+                            const b = labB[i];
+
+                            // Lab → XYZ
+                            const fy = (newL + 16) / 116;
+                            const fx = a / 500 + fy;
+                            const fz = fy - b / 200;
+                            const eps = 0.008856, kappa = 903.3;
+                            const X = (fx * fx * fx > eps ? fx * fx * fx : (116 * fx - 16) / kappa) * 0.95047;
+                            const Y = (newL > kappa * eps ? fy * fy * fy : newL / kappa) * 1.00000;
+                            const Z = (fz * fz * fz > eps ? fz * fz * fz : (116 * fz - 16) / kappa) * 1.08883;
+
+                            // XYZ → linear RGB
+                            let lr =  3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z;
+                            let lg = -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z;
+                            let lb =  0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z;
+
+                            // Linear → sRGB
+                            lr = lr > 0.0031308 ? 1.055 * Math.pow(lr, 1 / 2.4) - 0.055 : 12.92 * lr;
+                            lg = lg > 0.0031308 ? 1.055 * Math.pow(lg, 1 / 2.4) - 0.055 : 12.92 * lg;
+                            lb = lb > 0.0031308 ? 1.055 * Math.pow(lb, 1 / 2.4) - 0.055 : 12.92 * lb;
+
+                            outPx[i * 4]     = Math.max(0, Math.min(255, Math.round(lr * 255)));
+                            outPx[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(lg * 255)));
+                            outPx[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(lb * 255)));
+                            outPx[i * 4 + 3] = 255;
+                        }
+
+                        relitCtx.putImageData(outData, 0, 0);
+
+                        statusEl.textContent = "Done!";
+                    } catch (err) {
+                        console.error("Relight error:", err);
+                        statusEl.textContent = "Error: " + err.message;
+                    }
+
+                    processing = false;
+                    updateRelightBtn();
+                }
+            })();
+        </script>
+    </body>
+</html>

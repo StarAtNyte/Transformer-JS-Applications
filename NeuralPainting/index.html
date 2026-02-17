@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neural Painter — Stylized Neural Painting</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 32px; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .grid { display: grid; gap: 24px; }
+        @media (min-width: 900px) { .grid { grid-template-columns: 320px 1fr; } }
+        .card {
+            background: white; border-radius: 12px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .icon { width: 20px; height: 20px; }
+        .dropzone {
+            border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+            text-align: center; cursor: pointer; transition: border-color 0.2s;
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+        .dropzone p { color: #666; font-size: 0.9rem; }
+        .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+        #preview {
+            max-width: 100%; max-height: 120px; border-radius: 8px;
+            margin: 12px auto 0; display: none;
+        }
+        .btn {
+            width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+            font-size: 0.95rem; font-weight: 500; cursor: pointer;
+            transition: all 0.2s; margin-top: 12px;
+        }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-stop { background: #ef4444; color: white; display: none; }
+        .btn-stop:hover { background: #dc2626; }
+        .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+        .progress { margin-top: 12px; display: none; }
+        .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%; transition: width 0.3s;
+        }
+        .progress-text {
+            font-size: 0.75rem; color: #999; margin-top: 4px;
+            display: flex; justify-content: space-between;
+        }
+        .model-status {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px; border-radius: 8px; margin-bottom: 16px;
+        }
+        .model-status.loaded { background: #f0fdf4; }
+        .model-status.loading { background: #fef3c7; }
+        .model-status.idle { background: #f1f5f9; }
+        .model-status.error { background: #fef2f2; }
+        .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
+        }
+        .model-status.loaded .dot { background: #22c55e; }
+        .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+        .model-status.error .dot { background: #ef4444; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .control-group { margin-bottom: 14px; }
+        .control-group label {
+            display: block; font-size: 0.85rem; color: #666;
+            font-weight: 500; margin-bottom: 6px;
+        }
+        .control-group select, .control-group input[type="number"] {
+            width: 100%; padding: 8px 10px; border: 1px solid #ddd;
+            border-radius: 6px; font-size: 0.9rem; background: white;
+        }
+        .control-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .canvas-wrap {
+            background: #1a1a2e; border: 1px solid #e2e8f0; border-radius: 8px;
+            overflow: hidden; min-height: 300px; display: flex;
+            align-items: center; justify-content: center; padding: 8px;
+            flex-direction: column; position: relative;
+        }
+        .canvas-pair {
+            display: flex; gap: 8px; align-items: center; justify-content: center;
+            flex-wrap: wrap; width: 100%;
+        }
+        .canvas-pair canvas {
+            border-radius: 6px; max-width: 48%; height: auto;
+        }
+        .canvas-label {
+            position: absolute; top: 8px; color: rgba(255,255,255,0.7);
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.05em; pointer-events: none;
+        }
+        .canvas-label.left { left: 16px; }
+        .canvas-label.right { right: 16px; }
+        .canvas-placeholder {
+            color: #aaa; font-size: 0.9rem; text-align: center; padding: 48px;
+        }
+        .canvas-placeholder svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+        .viz-tip {
+            font-size: 0.78rem; color: #888; text-align: center;
+            margin-top: 10px; line-height: 1.4;
+        }
+        .viz-tip strong { color: #666; }
+        .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .sample-item {
+            aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+            cursor: pointer; transition: transform 0.2s;
+        }
+        .sample-item:hover { transform: scale(1.05); }
+        .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+        .stroke-counter {
+            font-size: 0.8rem; color: rgba(255,255,255,0.6);
+            position: absolute; bottom: 12px; right: 16px;
+            font-variant-numeric: tabular-nums;
+        }
+        footer {
+            text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem;
+        }
+        footer a { color: #6366f1; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Neural Painter</h1>
+            <p class="subtitle">Photo → paintbrush strokes, powered by Stylized Neural Painting (CVPR 2021)</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status idle">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Select a brush to load</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Upload Image
+                    </h2>
+
+                    <div id="dropZone" class="dropzone">
+                        <input type="file" id="imageInput" accept="image/*" hidden />
+                        <p>Drop image here or click</p>
+                        <p class="hint">PNG, JPG, WebP</p>
+                        <img id="preview" alt="Preview" />
+                    </div>
+
+                    <div class="control-group" style="margin-top: 16px;">
+                        <label>Brush Style</label>
+                        <select id="brushSelect">
+                            <option value="oilpaintbrush" selected>🖌️ Oil Paint Brush</option>
+                            <option value="watercolor">💧 Watercolor Ink</option>
+                            <option value="markerpen">🖊️ Marker Pen</option>
+                            <option value="rectangle">🟧 Color Tapes</option>
+                        </select>
+                    </div>
+
+                    <div class="control-row">
+                        <div class="control-group">
+                            <label>Grid Size</label>
+                            <select id="gridSelect">
+                                <option value="3">3 × 3</option>
+                                <option value="4">4 × 4</option>
+                                <option value="5" selected>5 × 5</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Total Strokes</label>
+                            <select id="strokeSelect">
+                                <option value="200">200 (fast)</option>
+                                <option value="500" selected>500</option>
+                                <option value="1000">1000 (detailed)</option>
+                                <option value="2000">2000 (fine)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Canvas Color</label>
+                        <select id="canvasColorSelect">
+                            <option value="black" selected>Black</option>
+                            <option value="white">White</option>
+                        </select>
+                    </div>
+
+                    <button id="paintBtn" class="btn btn-primary" disabled>🎨 Paint</button>
+                    <button id="stopBtn" class="btn btn-stop">⏹ Stop</button>
+
+                    <div id="status" class="status"></div>
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Loading...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px;">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                        </svg>
+                        Sample Images
+                    </h2>
+                    <div id="sampleGallery" class="sample-grid"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        Painting Canvas
+                    </h2>
+
+                    <div class="canvas-wrap">
+                        <span class="canvas-label left">Original</span>
+                        <span class="canvas-label right">Painting</span>
+                        <div class="canvas-pair">
+                            <canvas id="sourceCanvas"></canvas>
+                            <canvas id="paintCanvas"></canvas>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p>Upload or select an image, pick a brush, then click "Paint"</p>
+                        </div>
+                        <span id="strokeCounter" class="stroke-counter"></span>
+                    </div>
+                    <p class="viz-tip">
+                        <strong>💡 How it works:</strong> The image is divided into a grid of patches.
+                        For each patch, stroke parameters (position, color, shape) are sampled from
+                        high-error regions and rendered through the neural renderer ONNX model, then
+                        composited onto the canvas stroke by stroke.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://github.com/jiupinjia/stylized-neural-painting" target="_blank">Stylized Neural Painting</a>
+                &amp;
+                <a href="https://onnxruntime.ai/docs/tutorials/web/" target="_blank">ONNX Runtime Web</a>
+                — All inference runs locally in your browser.
+            </p>
+        </footer>
+    </div>
+
+    <script>
+    (function () {
+        "use strict";
+
+        const MODEL_DIR = new URL("../PortableModels/onnx_models/neural-painting", location.href).href;
+        const PATCH_SIZE = 128;
+
+        const RENDERERS = {
+            oilpaintbrush: { d: 12, d_shape: 5, d_color: 6, d_alpha: 1 },
+            watercolor:    { d: 15, d_shape: 8, d_color: 6, d_alpha: 1 },
+            markerpen:     { d: 12, d_shape: 8, d_color: 3, d_alpha: 1 },
+            rectangle:     { d: 9,  d_shape: 5, d_color: 3, d_alpha: 1 },
+        };
+
+        // ── DOM refs ──
+        const dropZone = document.getElementById("dropZone");
+        const imageInput = document.getElementById("imageInput");
+        const preview = document.getElementById("preview");
+        const paintBtn = document.getElementById("paintBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const statusEl = document.getElementById("status");
+        const progress = document.getElementById("progress");
+        const progressFill = document.getElementById("progressFill");
+        const progressLabel = document.getElementById("progressLabel");
+        const progressPercent = document.getElementById("progressPercent");
+        const modelStatus = document.getElementById("modelStatus");
+        const modelStatusText = document.getElementById("modelStatusText");
+        const brushSelect = document.getElementById("brushSelect");
+        const gridSelect = document.getElementById("gridSelect");
+        const strokeSelect = document.getElementById("strokeSelect");
+        const canvasColorSelect = document.getElementById("canvasColorSelect");
+        const sourceCanvas = document.getElementById("sourceCanvas");
+        const paintCanvas = document.getElementById("paintCanvas");
+        const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+        const strokeCounter = document.getElementById("strokeCounter");
+        const sampleGallery = document.getElementById("sampleGallery");
+
+        const srcCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+        const paintCtx = paintCanvas.getContext("2d");
+
+        let currentImageUrl = null;
+        let painting = false;
+        let modelLoaded = false;
+
+        // ── Sample images ──
+        const SAMPLE_IMAGES = [
+            "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300&q=80",
+            "https://images.unsplash.com/photo-1560807707-8cc77767d783?w=300&q=80",
+            "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=300&q=80",
+            "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=300&q=80",
+            "https://images.unsplash.com/photo-1551316679-9c6ae9dec224?w=300&q=80",
+            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&q=80",
+        ];
+        sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) =>
+            `<div class="sample-item" data-index="${i}">
+                <img src="${url}" alt="Sample ${i+1}" crossorigin="anonymous">
+            </div>`
+        ).join("");
+
+        // ══════════════════════════════════════════════════════════════
+        //  Inline Web Worker — ONNX inference + painting pipeline
+        //  Keeps main thread free for responsive UI.
+        // ══════════════════════════════════════════════════════════════
+        const workerCode = `
+            importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js");
+            ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+
+            const PATCH_SIZE = 128;
+            const K_CANDIDATES = 8;
+
+            const RENDERERS = {
+                oilpaintbrush: { d: 12, d_shape: 5, d_color: 6, d_alpha: 1 },
+                watercolor:    { d: 15, d_shape: 8, d_color: 6, d_alpha: 1 },
+                markerpen:     { d: 12, d_shape: 8, d_color: 3, d_alpha: 1 },
+                rectangle:     { d: 9,  d_shape: 5, d_color: 3, d_alpha: 1 },
+            };
+
+            let session = null;
+            let loadedBrush = null;
+            let stopRequested = false;
+
+            self.onmessage = async (e) => {
+                const msg = e.data;
+                if (msg.type === "load") {
+                    await handleLoad(msg);
+                } else if (msg.type === "paint") {
+                    stopRequested = false;
+                    await handlePaint(msg);
+                } else if (msg.type === "stop") {
+                    stopRequested = true;
+                }
+            };
+
+            async function handleLoad({ brush, modelDir }) {
+                if (brush === loadedBrush && session) {
+                    self.postMessage({ type: "loaded", brush });
+                    return;
+                }
+                try {
+                    if (session) { await session.release(); session = null; }
+                    const baseName = "neural_renderer_" + brush;
+                    const modelUrl = modelDir + "/" + baseName + ".onnx";
+                    const dataUrl  = modelDir + "/" + baseName + ".onnx.data";
+
+                    self.postMessage({ type: "loadProgress", text: "Downloading model...", pct: 0 });
+
+                    const [modelResp, dataResp] = await Promise.all([fetch(modelUrl), fetch(dataUrl)]);
+                    if (!modelResp.ok) throw new Error("Failed to fetch " + modelUrl);
+                    if (!dataResp.ok) throw new Error("Failed to fetch " + dataUrl);
+                    const [modelBuf, dataBuf] = await Promise.all([
+                        modelResp.arrayBuffer(), dataResp.arrayBuffer()
+                    ]);
+
+                    self.postMessage({ type: "loadProgress", text: "Initializing model...", pct: 80 });
+
+                    session = await ort.InferenceSession.create(modelBuf, {
+                        executionProviders: ["wasm"],
+                        externalData: [{ path: baseName + ".onnx.data", data: new Uint8Array(dataBuf) }],
+                    });
+                    loadedBrush = brush;
+                    self.postMessage({ type: "loaded", brush });
+                } catch (err) {
+                    self.postMessage({ type: "loadError", message: err.message });
+                    session = null;
+                    loadedBrush = null;
+                }
+            }
+
+            async function handlePaint({ imgBatch, mGrid, totalStrokes, canvasColor, brushName }) {
+                const cfg = RENDERERS[brushName];
+                const N = mGrid * mGrid;
+                const S = PATCH_SIZE;
+                const strokesPerBlock = Math.max(1, Math.floor(totalStrokes / N));
+                const patchPixels = 3 * S * S;
+                const fillVal = canvasColor === "white" ? 1.0 : 0.0;
+
+                const renderedFg = Array.from({length: N}, () =>
+                    Array.from({length: strokesPerBlock}, () => null));
+                const renderedAlpha = Array.from({length: N}, () =>
+                    Array.from({length: strokesPerBlock}, () => null));
+
+                const total = strokesPerBlock * N;
+
+                for (let anchorId = 0; anchorId < strokesPerBlock; anchorId++) {
+                    if (stopRequested) break;
+
+                    // Build current canvas by compositing strokes 0..anchorId-1
+                    const currentCanvas = new Float32Array(N * patchPixels);
+                    if (fillVal > 0) currentCanvas.fill(fillVal);
+                    for (let si = 0; si < anchorId; si++) {
+                        for (let p = 0; p < N; p++) {
+                            if (!renderedFg[p][si]) continue;
+                            const off = p * patchPixels;
+                            const fg = renderedFg[p][si];
+                            const al = renderedAlpha[p][si];
+                            for (let i = 0; i < patchPixels; i++) {
+                                const a = clamp01(al[i]);
+                                currentCanvas[off + i] = fg[i] * a + currentCanvas[off + i] * (1 - a);
+                            }
+                        }
+                    }
+
+                    // Compute error map per patch & sample K candidates
+                    const candidates = new Float32Array(N * K_CANDIDATES * cfg.d);
+                    for (let p = 0; p < N; p++) {
+                        const errMap = computeErrorMap(imgBatch, currentCanvas, p, S);
+                        for (let k = 0; k < K_CANDIDATES; k++) {
+                            const params = sampleStrokeParams(brushName, cfg, errMap, imgBatch, p, S);
+                            clampParams(params, cfg);
+                            candidates.set(params, (p * K_CANDIDATES + k) * cfg.d);
+                        }
+                    }
+
+                    // Run ONNX on all K*N candidates in one batch
+                    const batchSize = N * K_CANDIDATES;
+                    const inputTensor = new ort.Tensor("float32", candidates.slice(),
+                        [batchSize, cfg.d, 1, 1]);
+                    const results = await session.run({ stroke_params: inputTensor });
+                    const fgAll = results.foreground.data;
+                    const alAll = results.alpha_mask.data;
+
+                    // Greedy selection
+                    for (let p = 0; p < N; p++) {
+                        const pOff = p * patchPixels;
+                        let bestK = 0, bestErr = Infinity;
+                        for (let k = 0; k < K_CANDIDATES; k++) {
+                            const cIdx = (p * K_CANDIDATES + k) * patchPixels;
+                            let err = 0;
+                            for (let i = 0; i < patchPixels; i++) {
+                                const a = clamp01(alAll[cIdx + i]);
+                                const px = fgAll[cIdx + i] * a + currentCanvas[pOff + i] * (1 - a);
+                                err += Math.abs(imgBatch[pOff + i] - px);
+                            }
+                            if (err < bestErr) { bestErr = err; bestK = k; }
+                        }
+                        const wIdx = (p * K_CANDIDATES + bestK) * patchPixels;
+                        renderedFg[p][anchorId] = fgAll.slice(wIdx, wIdx + patchPixels);
+                        renderedAlpha[p][anchorId] = alAll.slice(wIdx, wIdx + patchPixels);
+                    }
+
+                    // Incremental render: composite all strokes 0..anchorId → send frame
+                    const displayCanvas = new Float32Array(N * patchPixels);
+                    if (fillVal > 0) displayCanvas.fill(fillVal);
+                    for (let si = 0; si <= anchorId; si++) {
+                        for (let p = 0; p < N; p++) {
+                            if (!renderedFg[p][si]) continue;
+                            const off = p * patchPixels;
+                            const fg = renderedFg[p][si];
+                            const al = renderedAlpha[p][si];
+                            for (let i = 0; i < patchPixels; i++) {
+                                const a = clamp01(al[i]);
+                                displayCanvas[off + i] = fg[i] * a + displayCanvas[off + i] * (1 - a);
+                            }
+                        }
+                    }
+
+                    const done = (anchorId + 1) * N;
+                    self.postMessage({
+                        type: "stroke",
+                        anchorId, strokesPerBlock, done, total,
+                        displayCanvas: displayCanvas.buffer,
+                        mGrid, S,
+                    }, [displayCanvas.buffer]);
+                }
+
+                self.postMessage({ type: "done", stopped: stopRequested });
+            }
+
+            // ── Pure functions (same logic as before) ──
+            function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+            function clampParams(params, cfg) {
+                for (let i = 0; i < cfg.d_shape; i++)
+                    params[i] = Math.max(0.1, Math.min(0.9, params[i]));
+                for (let i = cfg.d_shape; i < cfg.d_shape + cfg.d_color; i++)
+                    params[i] = Math.max(0, Math.min(1, params[i]));
+                for (let i = cfg.d_shape + cfg.d_color; i < cfg.d; i++)
+                    params[i] = Math.max(0, Math.min(1, params[i]));
+            }
+
+            function computeErrorMap(imgBatch, canvas, patchIdx, S) {
+                const off = patchIdx * 3 * S * S;
+                const errMap = new Float32Array(S * S);
+                for (let c = 0; c < 3; c++) {
+                    const cOff = c * S * S;
+                    for (let i = 0; i < S * S; i++) {
+                        errMap[i] += Math.abs(imgBatch[off + cOff + i] - canvas[off + cOff + i]);
+                    }
+                }
+                const ks = Math.max(1, Math.floor(S / 8));
+                boxBlur(errMap, S, S, ks);
+                let sum = 0;
+                for (let i = 0; i < errMap.length; i++) {
+                    errMap[i] = errMap[i] * errMap[i] * errMap[i] * errMap[i];
+                    sum += errMap[i];
+                }
+                if (sum < 1e-12) {
+                    for (let i = 0; i < errMap.length; i++) errMap[i] = 1.0 / errMap.length;
+                } else {
+                    for (let i = 0; i < errMap.length; i++) errMap[i] /= sum;
+                }
+                return errMap;
+            }
+
+            function sampleStrokeParams(brushName, cfg, errMap, imgBatch, patchIdx, S) {
+                const off = patchIdx * 3 * S * S;
+                const idx = weightedSample(errMap);
+                const cy = Math.floor(idx / S) / S;
+                const cx = (idx % S) / S;
+                const pixY = Math.min(Math.floor(cy * S), S - 1);
+                const pixX = Math.min(Math.floor(cx * S), S - 1);
+                const r = imgBatch[off + 0 * S * S + pixY * S + pixX];
+                const g = imgBatch[off + 1 * S * S + pixY * S + pixX];
+                const b = imgBatch[off + 2 * S * S + pixY * S + pixX];
+                if (brushName === "oilpaintbrush") {
+                    return new Float32Array([
+                        cx, cy, randF(0.1, 0.25), randF(0.1, 0.25), Math.random(),
+                        r, g, b, r, g, b, randF(0.98, 1.0)
+                    ]);
+                } else if (brushName === "watercolor") {
+                    return new Float32Array([
+                        cx, cy, cx, cy, cx, cy,
+                        randF(0.1, 0.25), randF(0.1, 0.25),
+                        r, g, b, r, g, b, randF(0.98, 1.0)
+                    ]);
+                } else if (brushName === "markerpen") {
+                    return new Float32Array([
+                        cx, cy, cx, cy, cx, cy,
+                        randF(0.1, 0.25), randF(0.1, 0.25),
+                        r, g, b, randF(0.8, 0.98)
+                    ]);
+                } else {
+                    return new Float32Array([
+                        cx, cy, randF(0.1, 0.25), randF(0.1, 0.25), 0,
+                        r, g, b, randF(0.8, 0.98)
+                    ]);
+                }
+            }
+
+            function weightedSample(probs) {
+                let r = Math.random();
+                for (let i = 0; i < probs.length; i++) { r -= probs[i]; if (r <= 0) return i; }
+                return probs.length - 1;
+            }
+            function randF(lo, hi) { return lo + Math.random() * (hi - lo); }
+
+            function boxBlur(data, w, h, r) {
+                const tmp = new Float32Array(data.length);
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        let sum = 0, cnt = 0;
+                        for (let dx = -r; dx <= r; dx++) {
+                            const nx = x + dx;
+                            if (nx >= 0 && nx < w) { sum += data[y * w + nx]; cnt++; }
+                        }
+                        tmp[y * w + x] = sum / cnt;
+                    }
+                }
+                for (let x = 0; x < w; x++) {
+                    for (let y = 0; y < h; y++) {
+                        let sum = 0, cnt = 0;
+                        for (let dy = -r; dy <= r; dy++) {
+                            const ny = y + dy;
+                            if (ny >= 0 && ny < h) { sum += tmp[ny * w + x]; cnt++; }
+                        }
+                        data[y * w + x] = sum / cnt;
+                    }
+                }
+            }
+        `;
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+
+        // ── Worker message handling ──
+        worker.onmessage = (e) => {
+            const msg = e.data;
+            switch (msg.type) {
+                case "loadProgress":
+                    progressFill.style.width = msg.pct + "%";
+                    progressLabel.textContent = msg.text;
+                    break;
+                case "loaded":
+                    modelLoaded = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = `${msg.brush} ready`;
+                    progress.style.display = "none";
+                    updatePaintBtn();
+                    break;
+                case "loadError":
+                    modelLoaded = false;
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load: " + msg.message;
+                    progress.style.display = "none";
+                    break;
+                case "stroke": {
+                    const { anchorId, strokesPerBlock, done, total, displayCanvas, mGrid, S } = msg;
+                    const pct = Math.round(100 * done / total);
+                    progressFill.style.width = pct + "%";
+                    progressLabel.textContent = `Stroke ${anchorId + 1} / ${strokesPerBlock} (×${mGrid*mGrid} patches)`;
+                    progressPercent.textContent = pct + "%";
+                    strokeCounter.textContent = `${done} / ${total} strokes`;
+                    patches2canvas(new Float32Array(displayCanvas), mGrid, S, paintCtx);
+                    break;
+                }
+                case "done":
+                    statusEl.textContent = msg.stopped ? "Stopped." : "Done!";
+                    progress.style.display = "none";
+                    painting = false;
+                    stopBtn.style.display = "none";
+                    updatePaintBtn();
+                    break;
+            }
+        };
+
+        // ── Image handling ──
+        dropZone.addEventListener("click", () => imageInput.click());
+        dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+        dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+        dropZone.addEventListener("drop", e => {
+            e.preventDefault(); dropZone.classList.remove("dragover");
+            const f = e.dataTransfer.files[0];
+            if (f && f.type.startsWith("image/")) handleImageFile(f);
+        });
+        imageInput.addEventListener("change", e => { if (e.target.files[0]) handleImageFile(e.target.files[0]); });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                preview.src = e.target.result;
+                preview.style.display = "block";
+                currentImageUrl = e.target.result;
+                updatePaintBtn();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        sampleGallery.addEventListener("click", e => {
+            const item = e.target.closest(".sample-item");
+            if (item) {
+                const url = SAMPLE_IMAGES[item.dataset.index];
+                preview.src = url;
+                preview.style.display = "block";
+                currentImageUrl = url;
+                updatePaintBtn();
+            }
+        });
+
+        function updatePaintBtn() {
+            paintBtn.disabled = !currentImageUrl || !modelLoaded || painting;
+        }
+
+        // ── Model loading ──
+        brushSelect.addEventListener("change", () => loadModel());
+
+        function loadModel() {
+            modelLoaded = false;
+            modelStatus.className = "model-status loading";
+            modelStatusText.textContent = `Loading ${brushSelect.value} model...`;
+            progress.style.display = "block";
+            progressFill.style.width = "0%";
+            progressPercent.textContent = "";
+            paintBtn.disabled = true;
+            worker.postMessage({ type: "load", brush: brushSelect.value, modelDir: MODEL_DIR });
+        }
+        loadModel();
+
+        // ── Paint ──
+        paintBtn.addEventListener("click", startPainting);
+        stopBtn.addEventListener("click", () => {
+            worker.postMessage({ type: "stop" });
+        });
+
+        async function startPainting() {
+            if (!currentImageUrl || !modelLoaded) return;
+            painting = true;
+            updatePaintBtn();
+            stopBtn.style.display = "block";
+            canvasPlaceholder.style.display = "none";
+            sourceCanvas.style.display = "block";
+            paintCanvas.style.display = "block";
+            progress.style.display = "block";
+            statusEl.textContent = "Painting...";
+
+            const mGrid = parseInt(gridSelect.value);
+            const S = PATCH_SIZE;
+            const canvasW = S * mGrid;
+
+            const img = await loadImage(currentImageUrl);
+            sourceCanvas.width = canvasW;
+            sourceCanvas.height = canvasW;
+            srcCtx.drawImage(img, 0, 0, canvasW, canvasW);
+            paintCanvas.width = canvasW;
+            paintCanvas.height = canvasW;
+
+            const imgBatch = img2patches(srcCtx, mGrid, S);
+
+            worker.postMessage({
+                type: "paint",
+                imgBatch: imgBatch.buffer,
+                mGrid,
+                totalStrokes: parseInt(strokeSelect.value),
+                canvasColor: canvasColorSelect.value,
+                brushName: brushSelect.value,
+            }, [imgBatch.buffer]);
+        }
+
+        // ── Image ↔ patches ──
+        function img2patches(ctx, mGrid, S) {
+            const N = mGrid * mGrid;
+            const out = new Float32Array(N * 3 * S * S);
+            for (let yg = 0; yg < mGrid; yg++) {
+                for (let xg = 0; xg < mGrid; xg++) {
+                    const imgData = ctx.getImageData(xg * S, yg * S, S, S).data;
+                    const pIdx = yg * mGrid + xg;
+                    const pOff = pIdx * 3 * S * S;
+                    for (let y = 0; y < S; y++) {
+                        for (let x = 0; x < S; x++) {
+                            const srcI = (y * S + x) * 4;
+                            const dstI = y * S + x;
+                            out[pOff + 0 * S * S + dstI] = imgData[srcI]     / 255;
+                            out[pOff + 1 * S * S + dstI] = imgData[srcI + 1] / 255;
+                            out[pOff + 2 * S * S + dstI] = imgData[srcI + 2] / 255;
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+
+        function patches2canvas(patches, mGrid, S, ctx) {
+            const W = S * mGrid;
+            const imgData = ctx.createImageData(W, W);
+            for (let yg = 0; yg < mGrid; yg++) {
+                for (let xg = 0; xg < mGrid; xg++) {
+                    const pIdx = yg * mGrid + xg;
+                    const pOff = pIdx * 3 * S * S;
+                    for (let y = 0; y < S; y++) {
+                        for (let x = 0; x < S; x++) {
+                            const dstI = ((yg * S + y) * W + (xg * S + x)) * 4;
+                            const srcI = y * S + x;
+                            imgData.data[dstI]     = clamp255(patches[pOff + 0 * S * S + srcI]);
+                            imgData.data[dstI + 1] = clamp255(patches[pOff + 1 * S * S + srcI]);
+                            imgData.data[dstI + 2] = clamp255(patches[pOff + 2 * S * S + srcI]);
+                            imgData.data[dstI + 3] = 255;
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        function clamp255(v) { return Math.max(0, Math.min(255, Math.round(v * 255))); }
+
+        function loadImage(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = url;
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

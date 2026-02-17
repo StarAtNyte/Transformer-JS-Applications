@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FaceParser - Semantic Face Segmentation</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                background: #f8f9fa;
+                color: #333;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            header {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                color: #666;
+                font-size: 1rem;
+            }
+            .grid {
+                display: grid;
+                gap: 24px;
+            }
+            @media (min-width: 900px) {
+                .grid {
+                    grid-template-columns: 320px 1fr;
+                }
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+            .dropzone {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 24px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .dropzone:hover,
+            .dropzone.dragover {
+                border-color: #6366f1;
+            }
+            .dropzone p {
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .dropzone .hint {
+                color: #999;
+                font-size: 0.8rem;
+                margin-top: 4px;
+            }
+            #preview {
+                max-width: 100%;
+                max-height: 150px;
+                border-radius: 8px;
+                margin: 12px auto 0;
+                display: none;
+            }
+            .btn {
+                width: 100%;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 12px;
+            }
+            .btn-primary {
+                background: #6366f1;
+                color: white;
+            }
+            .btn-primary:hover:not(:disabled) {
+                background: #4f46e5;
+            }
+            .btn-primary:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 12px;
+                text-align: center;
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .progress {
+                margin-top: 12px;
+                display: none;
+            }
+            .progress-bar {
+                height: 4px;
+                background: #eee;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                width: 0%;
+                transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem;
+                color: #999;
+                margin-top: 4px;
+                display: flex;
+                justify-content: space-between;
+            }
+            .model-status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            .model-status.loaded {
+                background: #f0fdf4;
+            }
+            .model-status.loading {
+                background: #fef3c7;
+            }
+            .model-status.error {
+                background: #fef2f2;
+            }
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b;
+                animation: pulse 1s infinite;
+            }
+            .model-status.error .dot {
+                background: #ef4444;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            .sample-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .sample-item {
+                aspect-ratio: 1;
+                border-radius: 6px;
+                overflow: hidden;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .sample-item:hover {
+                transform: scale(1.05);
+            }
+            .sample-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .canvas-wrap {
+                background: #f8f9fa;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+            }
+            .canvas-container {
+                display: none;
+                gap: 16px;
+                width: 100%;
+            }
+            .canvas-panel {
+                flex: 1;
+                min-width: 0;
+                text-align: center;
+            }
+            .canvas-panel-label {
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: #666;
+                margin-bottom: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .canvas-panel canvas {
+                border-radius: 6px;
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin: 0 auto;
+            }
+            .canvas-panel-seg {
+                position: relative;
+            }
+            .seg-spinner {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: rgba(248, 249, 250, 0.85);
+                border-radius: 6px;
+                gap: 12px;
+            }
+            .seg-spinner.hidden {
+                display: none !important;
+            }
+            .spinner-ring {
+                width: 40px;
+                height: 40px;
+                border: 4px solid #e2e8f0;
+                border-top-color: #6366f1;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+            }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            .spinner-text {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+            }
+            .canvas-placeholder {
+                color: #aaa;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 48px;
+            }
+            .canvas-placeholder svg {
+                width: 64px;
+                height: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            .controls-bar {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+                margin-bottom: 16px;
+                padding: 12px 16px;
+                background: #f1f5f9;
+                border-radius: 8px;
+            }
+            .control-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .control-group label {
+                font-size: 0.85rem;
+                color: #666;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+            input[type="range"] {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100px;
+                height: 5px;
+                background: #ddd;
+                border-radius: 3px;
+                outline: none;
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 14px;
+                height: 14px;
+                background: #6366f1;
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .scale-value {
+                font-size: 0.8rem;
+                color: #888;
+                min-width: 36px;
+            }
+            .legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 0.75rem;
+                color: #555;
+                cursor: pointer;
+                padding: 2px 6px;
+                border-radius: 4px;
+                transition: background 0.2s;
+            }
+            .legend-item:hover {
+                background: #e2e8f0;
+            }
+            .legend-item.active {
+                background: #e0e7ff;
+            }
+            .legend-swatch {
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+            }
+            .hidden {
+                display: none !important;
+            }
+            footer {
+                text-align: center;
+                margin-top: 32px;
+                color: #999;
+                font-size: 0.85rem;
+            }
+            footer a {
+                color: #6366f1;
+                text-decoration: none;
+            }
+            footer a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>FaceParser</h1>
+                <p class="subtitle">
+                    Semantic Face Segmentation powered by SegFormer
+                </p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            Upload Image
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input
+                                type="file"
+                                id="imageInput"
+                                accept="image/*"
+                                hidden
+                            />
+                            <p>Drop face image here or click</p>
+                            <p class="hint">PNG, JPG, WebP</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+
+                        <button
+                            id="parseBtn"
+                            class="btn btn-primary"
+                            disabled
+                        >
+                            Parse Face
+                        </button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div
+                                    id="progressFill"
+                                    class="progress-fill"
+                                ></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                ></path>
+                            </svg>
+                            Sample Images
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2 style="margin-bottom: 16px">
+                            <svg
+                                class="icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                ></path>
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                ></path>
+                            </svg>
+                            Segmentation Result
+                        </h2>
+
+                        <div class="controls-bar">
+                            <div class="control-group">
+                                <label>Opacity:</label>
+                                <input
+                                    id="opacitySlider"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value="0.6"
+                                />
+                                <span id="opacityValue" class="scale-value"
+                                    >60%</span
+                                >
+                            </div>
+                        </div>
+
+                        <div class="canvas-wrap">
+                            <div id="canvasContainer" class="canvas-container">
+                                <div class="canvas-panel">
+                                    <div class="canvas-panel-label">Original</div>
+                                    <canvas id="originalCanvas"></canvas>
+                                </div>
+                                <div class="canvas-panel canvas-panel-seg">
+                                    <div class="canvas-panel-label">Segmented</div>
+                                    <canvas id="segCanvas"></canvas>
+                                    <div id="segSpinner" class="seg-spinner hidden">
+                                        <div class="spinner-ring"></div>
+                                        <div class="spinner-text">Segmenting...</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                id="canvasPlaceholder"
+                                class="canvas-placeholder"
+                            >
+                                <svg
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <p>
+                                    Upload or select a face image, then click
+                                    "Parse Face"
+                                </p>
+                            </div>
+                        </div>
+
+                        <div id="legend" class="legend hidden"></div>
+
+                        <p
+                            class="viz-tip"
+                            style="
+                                font-size: 0.78rem;
+                                color: #888;
+                                text-align: center;
+                                margin-top: 10px;
+                                line-height: 1.4;
+                            "
+                        >
+                            <strong>💡 Tip:</strong> Click a label in the legend
+                            to highlight only that region. Adjust overlay opacity
+                            with the slider.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>
+                    Powered by
+                    <a
+                        href="https://huggingface.co/jonathandinu/face-parsing"
+                        target="_blank"
+                        >jonathandinu/face-parsing</a
+                    >
+                    &
+                    <a
+                        href="https://huggingface.co/docs/transformers.js"
+                        target="_blank"
+                        >Transformers.js</a
+                    >
+                </p>
+            </footer>
+        </div>
+
+        <script type="module">
+            const LABEL_NAMES = {
+                "background": "background", "skin": "skin", "nose": "nose",
+                "eye_g": "eyeglasses", "l_eye": "left eye", "r_eye": "right eye",
+                "l_brow": "left brow", "r_brow": "right brow",
+                "l_ear": "left ear", "r_ear": "right ear",
+                "mouth": "mouth", "u_lip": "upper lip", "l_lip": "lower lip",
+                "hair": "hair", "hat": "hat", "ear_r": "earring",
+                "neck_l": "necklace", "neck": "neck", "cloth": "clothing",
+            };
+
+            const COLORS = {
+                "background": [0, 0, 0],
+                "skin": [204, 178, 153],
+                "nose": [230, 138, 115],
+                "eyeglasses": [166, 212, 230],
+                "left eye": [76, 153, 204],
+                "right eye": [51, 128, 179],
+                "left brow": [179, 128, 204],
+                "right brow": [153, 102, 179],
+                "left ear": [255, 204, 128],
+                "right ear": [230, 179, 102],
+                "mouth": [230, 102, 102],
+                "upper lip": [255, 128, 128],
+                "lower lip": [204, 77, 77],
+                "hair": [128, 102, 77],
+                "hat": [255, 230, 102],
+                "earring": [255, 179, 204],
+                "necklace": [204, 230, 179],
+                "neck": [179, 204, 153],
+                "clothing": [153, 179, 230],
+            };
+
+            // ── Inline Web Worker ──
+            const workerCode = `
+                let pipeline, env, segmenter = null;
+
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    pipeline = T.pipeline;
+                    env = T.env;
+                    env.allowLocalModels = false;
+                }
+
+                const ready = init();
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            let device = "wasm", dtype = "q8";
+                            try {
+                                if (self.navigator?.gpu) {
+                                    const adapter = await navigator.gpu.requestAdapter();
+                                    if (adapter) { device = "webgpu"; dtype = "fp32"; }
+                                }
+                            } catch (err) {}
+                            self.postMessage({ id, type: "status", text: "Loading model (" + device.toUpperCase() + ")..." });
+                            segmenter = await pipeline("image-segmentation", "jonathandinu/face-parsing", {
+                                device, dtype,
+                                progress_callback: (p) => {
+                                    if (p.status === "progress" && p.progress != null) {
+                                        self.postMessage({ id, type: "progress", percent: Math.round(p.progress) });
+                                    }
+                                }
+                            });
+                            self.postMessage({ id, type: "loaded" });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "segment") {
+                        try {
+                            const { imageUrl } = e.data;
+                            self.postMessage({ id, type: "status", text: "Running segmentation..." });
+                            const output = await segmenter(imageUrl);
+                            const results = output.map(item => {
+                                const w = item.mask.width;
+                                const h = item.mask.height;
+                                const src = item.mask.data;
+                                const channels = item.mask.channels || Math.round(src.length / (w * h)) || 1;
+                                const mask = new Uint8Array(w * h);
+                                for (let i = 0; i < w * h; i++) {
+                                    mask[i] = src[i * channels] > 0 ? 1 : 0;
+                                }
+                                return { label: item.label, mask: Array.from(mask), width: w, height: h };
+                            });
+                            self.postMessage({ id, type: "segments", results });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+            const worker = new Worker(
+                URL.createObjectURL(new Blob([workerCode])),
+            );
+
+            let msgId = 0;
+            const pending = new Map();
+
+            function workerCall(msg) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id });
+                });
+            }
+
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") {
+                    modelStatusText.textContent = e.data.text;
+                    return;
+                }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            const SAMPLE_IMAGES = [
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80",
+                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80",
+                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&q=80",
+                "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80",
+                "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&q=80",
+                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80",
+            ];
+
+            let modelReady = false;
+            let currentImageUrl = null;
+            let segmentResults = null;
+            let originalImage = null;
+            let overlayOpacity = 0.6;
+            let activeLabel = null;
+
+            const dropZone = document.getElementById("dropZone");
+            const imageInput = document.getElementById("imageInput");
+            const preview = document.getElementById("preview");
+            const parseBtn = document.getElementById("parseBtn");
+            const status = document.getElementById("status");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressLabel = document.getElementById("progressLabel");
+            const progressPercent = document.getElementById("progressPercent");
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText =
+                document.getElementById("modelStatusText");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const canvasContainer =
+                document.getElementById("canvasContainer");
+            const originalCanvas =
+                document.getElementById("originalCanvas");
+            const segCanvas = document.getElementById("segCanvas");
+            const canvasPlaceholder =
+                document.getElementById("canvasPlaceholder");
+            const legend = document.getElementById("legend");
+            const opacitySlider = document.getElementById("opacitySlider");
+            const opacityValue = document.getElementById("opacityValue");
+            const segSpinner = document.getElementById("segSpinner");
+            const origCtx = originalCanvas.getContext("2d");
+            const segCtx = segCanvas.getContext("2d");
+
+            function initSampleGallery() {
+                sampleGallery.innerHTML = SAMPLE_IMAGES.map(
+                    (url, i) => `
+                    <div class="sample-item" data-index="${i}">
+                        <img src="${url}" alt="Sample ${i + 1}" crossorigin="anonymous">
+                    </div>
+                `,
+                ).join("");
+            }
+            initSampleGallery();
+
+            async function loadModel() {
+                try {
+                    progress.style.display = "block";
+                    progressLabel.textContent = "Downloading model...";
+                    await workerCall({ type: "load" });
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "Model ready";
+                    parseBtn.disabled = false;
+                    progress.style.display = "none";
+                } catch (e) {
+                    console.error("Model load error:", e);
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+
+            dropZone.addEventListener("click", () => imageInput.click());
+            dropZone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropZone.classList.add("dragover");
+            });
+            dropZone.addEventListener("dragleave", () =>
+                dropZone.classList.remove("dragover"),
+            );
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/"))
+                    handleImageFile(file);
+            });
+            imageInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) handleImageFile(file);
+            });
+
+            function handleImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                    currentImageUrl = e.target.result;
+                    segmentResults = null;
+                    legend.classList.add("hidden");
+                };
+                reader.readAsDataURL(file);
+            }
+
+            sampleGallery.addEventListener("click", (e) => {
+                const item = e.target.closest(".sample-item");
+                if (item) {
+                    const url = SAMPLE_IMAGES[item.dataset.index];
+                    preview.src = url;
+                    preview.style.display = "block";
+                    currentImageUrl = url;
+                    segmentResults = null;
+                    legend.classList.add("hidden");
+                }
+            });
+
+            opacitySlider.addEventListener("input", (e) => {
+                overlayOpacity = parseFloat(e.target.value);
+                opacityValue.textContent = `${Math.round(overlayOpacity * 100)}%`;
+                if (segmentResults) drawSegmentation();
+            });
+
+            parseBtn.addEventListener("click", async () => {
+                if (!currentImageUrl || !modelReady) return;
+                parseBtn.disabled = true;
+                status.textContent = "Segmenting face...";
+                activeLabel = null;
+
+                try {
+                    originalImage = new Image();
+                    originalImage.crossOrigin = "anonymous";
+                    await new Promise((resolve, reject) => {
+                        originalImage.onload = resolve;
+                        originalImage.onerror = reject;
+                        originalImage.src = currentImageUrl;
+                    });
+
+                    const w = originalImage.naturalWidth;
+                    const h = originalImage.naturalHeight;
+                    originalCanvas.width = w;
+                    originalCanvas.height = h;
+                    segCanvas.width = w;
+                    segCanvas.height = h;
+                    origCtx.drawImage(originalImage, 0, 0);
+
+                    canvasPlaceholder.style.display = "none";
+                    canvasContainer.style.display = "flex";
+                    segSpinner.classList.remove("hidden");
+                    segCtx.clearRect(0, 0, w, h);
+
+                    const result = await workerCall({
+                        type: "segment",
+                        imageUrl: currentImageUrl,
+                    });
+
+                    segSpinner.classList.add("hidden");
+                    segmentResults = result.results;
+                    buildLegend();
+                    drawSegmentation();
+
+                    const foundLabels = segmentResults
+                        .filter((r) => getDisplayLabel(r.label) !== "background")
+                        .map((r) => getDisplayLabel(r.label))
+                        .join(", ");
+                    status.textContent = `Found: ${foundLabels || "no face regions"}`;
+                } catch (err) {
+                    segSpinner.classList.add("hidden");
+                    status.textContent = "Error: " + err.message;
+                    console.error("Segmentation error:", err);
+                }
+                parseBtn.disabled = false;
+            });
+
+            function getDisplayLabel(rawLabel) {
+                return LABEL_NAMES[rawLabel] || rawLabel;
+            }
+
+            function getLabelColor(displayLabel) {
+                return COLORS[displayLabel] || [128, 128, 128];
+            }
+
+            function buildLegend() {
+                const found = segmentResults
+                    .filter((r) => getDisplayLabel(r.label) !== "background")
+                    .map((r) => getDisplayLabel(r.label));
+                legend.innerHTML = found
+                    .map((label) => {
+                        const c = getLabelColor(label);
+                        return `<div class="legend-item" data-label="${label}">
+                        <span class="legend-swatch" style="background:rgb(${c[0]},${c[1]},${c[2]})"></span>
+                        ${label}
+                    </div>`;
+                    })
+                    .join("");
+                legend.classList.remove("hidden");
+
+                legend.querySelectorAll(".legend-item").forEach((el) => {
+                    el.addEventListener("click", () => {
+                        const label = el.dataset.label;
+                        if (activeLabel === label) {
+                            activeLabel = null;
+                            legend
+                                .querySelectorAll(".legend-item")
+                                .forEach((e) =>
+                                    e.classList.remove("active"),
+                                );
+                        } else {
+                            activeLabel = label;
+                            legend
+                                .querySelectorAll(".legend-item")
+                                .forEach((e) =>
+                                    e.classList.remove("active"),
+                                );
+                            el.classList.add("active");
+                        }
+                        drawSegmentation();
+                    });
+                });
+            }
+
+            function drawSegmentation() {
+                if (!segmentResults || !originalImage) return;
+
+                const w = segCanvas.width;
+                const h = segCanvas.height;
+
+                origCtx.drawImage(originalImage, 0, 0);
+                segCtx.clearRect(0, 0, w, h);
+                segCtx.drawImage(originalImage, 0, 0);
+
+                const overlayData = segCtx.getImageData(0, 0, w, h);
+                const pixels = overlayData.data;
+
+                for (const seg of segmentResults) {
+                    const displayLabel = getDisplayLabel(seg.label);
+                    if (displayLabel === "background") continue;
+                    if (activeLabel && displayLabel !== activeLabel) continue;
+
+                    const color = getLabelColor(displayLabel);
+                    const mask = seg.mask;
+                    const mw = seg.width;
+                    const mh = seg.height;
+
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const mx = Math.floor((x / w) * mw);
+                            const my = Math.floor((y / h) * mh);
+                            const maskVal = mask[my * mw + mx];
+
+                            if (maskVal > 0) {
+                                const idx = (y * w + x) * 4;
+                                pixels[idx] = pixels[idx] * (1 - overlayOpacity) + color[0] * overlayOpacity;
+                                pixels[idx + 1] = pixels[idx + 1] * (1 - overlayOpacity) + color[1] * overlayOpacity;
+                                pixels[idx + 2] = pixels[idx + 2] * (1 - overlayOpacity) + color[2] * overlayOpacity;
+                            }
+                        }
+                    }
+                }
+
+                segCtx.putImageData(overlayData, 0, 0);
+            }
+        </script>
+    </body>
+</html>

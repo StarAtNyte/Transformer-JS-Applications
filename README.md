@@ -15,9 +15,9 @@ Uses [onnx-community/depth-anything-v2-small](https://huggingface.co/onnx-commun
 
 - **Depth Estimation** (`DepthAnything/index.html`) — Upload an image, get a colorized monocular depth map with Inferno, Viridis, or grayscale colormaps. Features side-by-side display, downloadable results, and full-size viewer with zoom.
 
-## Object Detection (DETR)
+## Object Detection (YOLOS)
 
-Uses [facebook/detr-resnet-50](https://huggingface.co/facebook/detr-resnet-50) for real-time object detection.
+Uses [Xenova/yolos-tiny](https://huggingface.co/Xenova/yolos-tiny) for fast object detection (lightweight Vision Transformer, Transformers.js optimized).
 
 - **Object Detection** (`ObjectDetection/index.html`) — Upload an image to detect objects with bounding boxes, confidence scores, and labels. Features:
   - Color-coded bounding boxes
