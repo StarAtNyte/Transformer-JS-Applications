@@ -864,6 +864,7 @@
                     segSpinner.classList.remove("hidden");
                     segCtx.clearRect(0, 0, w, h);
 
+                    const t0 = performance.now();
                     const result = await workerCall({
                         type: "segment",
                         imageUrl: currentImageUrl,
@@ -874,11 +875,12 @@
                     buildLegend();
                     drawSegmentation();
 
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
                     const foundLabels = segmentResults
                         .filter((r) => getDisplayLabel(r.label) !== "background")
                         .map((r) => getDisplayLabel(r.label))
                         .join(", ");
-                    status.textContent = `Found: ${foundLabels || "no face regions"}`;
+                    status.textContent = `Done in ${elapsed}s — Found: ${foundLabels || "no face regions"}`;
                 } catch (err) {
                     segSpinner.classList.add("hidden");
                     status.textContent = "Error: " + err.message;

@@ -215,18 +215,20 @@
                 flex-direction: column;
             }
             .canvas-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
+                display: flex;
                 gap: 16px;
+                justify-content: center;
+                align-items: flex-start;
                 width: 100%;
             }
             .canvas-col {
                 text-align: center;
                 min-width: 0;
+                flex: 0 1 auto;
             }
             .canvas-col canvas {
                 border-radius: 6px;
-                width: 100%;
+                max-width: 100%;
                 height: auto;
             }
             .canvas-label {
@@ -314,6 +316,20 @@
             }
             .viz-tip strong {
                 color: #666;
+            }
+            .btn-secondary {
+                background: #e2e8f0;
+                color: #333;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 6px;
+                font-size: 0.85rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .btn-secondary:hover {
+                background: #cbd5e1;
             }
             footer {
                 text-align: center;
@@ -574,6 +590,10 @@
                                 </div>
                             </div>
                         </div>
+                        <div id="downloadActions" style="display:none; justify-content:center; gap:12px; margin-top:12px; flex-wrap:wrap;">
+                            <button id="downloadOrigBtn" class="btn-secondary">Download Original</button>
+                            <button id="downloadRelitBtn" class="btn-secondary">Download Relit</button>
+                        </div>
                         <p class="viz-tip">
                             <strong>💡 Tip:</strong> Drag the light dot on the
                             ball to change the lighting direction, then click
@@ -637,6 +657,9 @@
                 const relitCanvas = document.getElementById("relitCanvas");
                 const lightBall = document.getElementById("lightBall");
                 const lightDot = document.getElementById("lightDot");
+                const downloadActions = document.getElementById("downloadActions");
+                const downloadOrigBtn = document.getElementById("downloadOrigBtn");
+                const downloadRelitBtn = document.getElementById("downloadRelitBtn");
 
                 const origCtx = originalCanvas.getContext("2d", {
                     willReadFrequently: true,
@@ -837,49 +860,80 @@
                 //
                 // DPR example lights (pre-scaled by 0.7):
                 const SH_PRESETS = [
-                    // 0 – front-right
+                    // 0 – right (~2° CCW from right)
                     [1.0841, -0.4643, 0.0284, 0.6765, -0.3594, 0.0479, -0.2280, -0.0813, 0.2881],
-                    // 1 – right
+                    // 1 – upper-right (~54°)
                     [1.0841, -0.4643, 0.5466, 0.3996, -0.2615, -0.2511, 0.0650, 0.3510, 0.1190],
-                    // 2 – front
+                    // 2 – top (~105°)
                     [1.0841, -0.4643, 0.6533, -0.1782, 0.0333, -0.3611, 0.3648, -0.0750, -0.0541],
-                    // 3 – left
+                    // 3 – upper-left (~157°)
                     [1.0841, -0.4643, 0.2680, -0.6218, 0.3030, -0.1991, -0.0616, -0.3177, 0.1921],
-                    // 4 – back-left
+                    // 4 – lower-left (~208°)
                     [1.0841, -0.4643, -0.3191, -0.5972, 0.3446, 0.1128, -0.1717, 0.2163, 0.2556],
-                    // 5 – back
+                    // 5 – bottom (~260°)
                     [1.0841, -0.4643, -0.6659, -0.1229, 0.1267, 0.3397, 0.3037, 0.2214, -0.0189],
-                    // 6 – back-right
+                    // 6 – lower-right (~311°)
                     [1.0841, -0.4643, -0.5112, 0.4440, -0.1866, 0.3109, 0.2022, -0.3149, 0.0397],
                 ];
 
+                // Measured angles (counter-clockwise from right) for each preset,
+                // derived from their X (coeff[3]) and Z (coeff[2]) components:
+                // 00≈2°, 01≈54°, 02≈105°, 03≈157°, 04≈208°, 05≈260°, 06≈311°
+                const PRESET_ANGLES = [2, 54, 105, 157, 208, 260, 311].map(
+                    (d) => (d * Math.PI) / 180
+                );
+
                 function dirToSH(dx, dy) {
-                    // Map (dx, dy) to an angle [0, 2π) around the light ring
-                    let angle = Math.atan2(dx, -dy); // top=0, clockwise
+                    // Convert screen (dx, dy) to 3D light angle:
+                    // dx: right=+1, dy: down=+1 in screen → up=+Z in 3D
+                    // counter-clockwise from right matches preset ordering
+                    let angle = Math.atan2(-dy, dx); // right=0, CCW positive
                     if (angle < 0) angle += 2 * Math.PI;
 
-                    // Distance from center controls interpolation with a
-                    // neutral "frontal" light (preset 2)
                     const dist = Math.min(1, Math.sqrt(dx * dx + dy * dy));
 
-                    // Map angle to a fractional index into the 7 presets
-                    // (which go around 360°)
-                    const n = SH_PRESETS.length;
-                    const frac = (angle / (2 * Math.PI)) * n;
-                    const i0 = Math.floor(frac) % n;
-                    const i1 = (i0 + 1) % n;
-                    const t = frac - Math.floor(frac);
+                    // Find surrounding preset pair for this angle.
+                    // Treat the ring as cyclic: gap between preset 6 (311°) and preset 0 (2°+360°).
+                    const n = PRESET_ANGLES.length;
+                    let i0 = n - 1, i1 = 0;
+                    let a0 = PRESET_ANGLES[n - 1], a1 = PRESET_ANGLES[0] + 2 * Math.PI;
+                    for (let i = 0; i < n - 1; i++) {
+                        if (angle >= PRESET_ANGLES[i] && angle < PRESET_ANGLES[i + 1]) {
+                            i0 = i; i1 = i + 1;
+                            a0 = PRESET_ANGLES[i]; a1 = PRESET_ANGLES[i + 1];
+                            break;
+                        }
+                    }
+                    // For the wrap-around segment, shift angle to be relative to a0
+                    const aAdj = (angle < a0) ? angle + 2 * Math.PI : angle;
+                    const t = Math.max(0, Math.min(1, (aAdj - a0) / (a1 - a0)));
 
-                    // Interpolate between two adjacent presets
                     const sh = new Float32Array(9);
-                    const frontal = SH_PRESETS[2];
+                    const frontal = SH_PRESETS[2]; // top light as neutral center
                     for (let k = 0; k < 9; k++) {
                         const ring = SH_PRESETS[i0][k] * (1 - t) + SH_PRESETS[i1][k] * t;
-                        // Blend between frontal (center) and ring direction
                         sh[k] = (frontal[k] * (1 - dist) + ring * dist) * 0.7;
                     }
                     return sh;
                 }
+
+                // ── Download ──
+                function downloadCanvas(canvas, filename) {
+                    const a = document.createElement("a");
+                    a.href = canvas.toDataURL("image/png");
+                    a.download = filename;
+                    a.click();
+                }
+
+                downloadOrigBtn.addEventListener("click", () => {
+                    const ts = new Date().toISOString().slice(0, 10);
+                    downloadCanvas(originalCanvas, `portrait-original-${ts}.png`);
+                });
+
+                downloadRelitBtn.addEventListener("click", () => {
+                    const ts = new Date().toISOString().slice(0, 10);
+                    downloadCanvas(relitCanvas, `portrait-relit-${ts}.png`);
+                });
 
                 // ── Relight ──
                 relightBtn.addEventListener("click", () => relight());
@@ -902,105 +956,117 @@
                             img.src = currentImageUrl;
                         });
 
-                        // Draw original at model resolution
-                        originalCanvas.width = res;
-                        originalCanvas.height = res;
-                        origCtx.drawImage(img, 0, 0, res, res);
+                        // Draw original at native resolution for display
+                        const origW = img.naturalWidth;
+                        const origH = img.naturalHeight;
+                        originalCanvas.width = origW;
+                        originalCanvas.height = origH;
+                        origCtx.drawImage(img, 0, 0);
 
                         canvasPlaceholder.style.display = "none";
                         canvasContainer.style.display = "flex";
 
-                        // Extract L channel using OpenCV-compatible Lab
-                        // OpenCV BGR2LAB: L in [0,255], a/b in [0,255] (128=neutral)
-                        const imageData = origCtx.getImageData(0, 0, res, res);
-                        const pixels = imageData.data;
-                        const n = res * res;
-                        const labL = new Float32Array(n);
-                        const labA = new Float32Array(n);
-                        const labB = new Float32Array(n);
+                        // ── Step 1: extract full-res Lab a/b (color info to preserve) ──
+                        const origPixels = origCtx.getImageData(0, 0, origW, origH).data;
+                        const nOrig = origW * origH;
+                        const origLabA = new Float32Array(nOrig);
+                        const origLabB = new Float32Array(nOrig);
 
-                        for (let i = 0; i < n; i++) {
-                            const R = pixels[i * 4];
-                            const G = pixels[i * 4 + 1];
-                            const B = pixels[i * 4 + 2];
-                            // sRGB → linear
-                            let lr = R / 255, lg = G / 255, lb = B / 255;
-                            lr = lr > 0.04045 ? Math.pow((lr + 0.055) / 1.055, 2.4) : lr / 12.92;
-                            lg = lg > 0.04045 ? Math.pow((lg + 0.055) / 1.055, 2.4) : lg / 12.92;
-                            lb = lb > 0.04045 ? Math.pow((lb + 0.055) / 1.055, 2.4) : lb / 12.92;
-                            // Linear RGB → XYZ (D65)
-                            let X = (0.4124564 * lr + 0.3575761 * lg + 0.1804375 * lb) / 0.95047;
-                            let Y = (0.2126729 * lr + 0.7151522 * lg + 0.0721750 * lb) / 1.00000;
-                            let Z = (0.0193339 * lr + 0.0770000 * lg + 0.9505140 * lb) / 1.08883;
-                            // XYZ → Lab
+                        function rgbToLab(R, G, B) {
+                            let r = R/255, g = G/255, b = B/255;
+                            r = r > 0.04045 ? Math.pow((r+0.055)/1.055, 2.4) : r/12.92;
+                            g = g > 0.04045 ? Math.pow((g+0.055)/1.055, 2.4) : g/12.92;
+                            b = b > 0.04045 ? Math.pow((b+0.055)/1.055, 2.4) : b/12.92;
+                            const X = (0.4124564*r + 0.3575761*g + 0.1804375*b) / 0.95047;
+                            const Y = (0.2126729*r + 0.7151522*g + 0.0721750*b);
+                            const Z = (0.0193339*r + 0.0770000*g + 0.9505140*b) / 1.08883;
                             const eps = 0.008856, kappa = 903.3;
-                            const fX = X > eps ? Math.cbrt(X) : (kappa * X + 16) / 116;
-                            const fY = Y > eps ? Math.cbrt(Y) : (kappa * Y + 16) / 116;
-                            const fZ = Z > eps ? Math.cbrt(Z) : (kappa * Z + 16) / 116;
-                            // L in [0,100], a/b roughly [-128,127]
-                            const L = 116 * fY - 16;
-                            const a = 500 * (fX - fY);
-                            const b = 200 * (fY - fZ);
-                            // OpenCV stores L as L*255/100, a/b as val+128
-                            labL[i] = (L * 255 / 100) / 255; // model input: [0,1]
-                            labA[i] = a;
-                            labB[i] = b;
+                            const fX = X > eps ? Math.cbrt(X) : (kappa*X+16)/116;
+                            const fY = Y > eps ? Math.cbrt(Y) : (kappa*Y+16)/116;
+                            const fZ = Z > eps ? Math.cbrt(Z) : (kappa*Z+16)/116;
+                            return [116*fY-16, 500*(fX-fY), 200*(fY-fZ)];
+                        }
+
+                        for (let i = 0; i < nOrig; i++) {
+                            const [, a, b] = rgbToLab(origPixels[i*4], origPixels[i*4+1], origPixels[i*4+2]);
+                            origLabA[i] = a;
+                            origLabB[i] = b;
+                        }
+
+                        // ── Step 2: scale to model resolution, extract L for inference ──
+                        const modelCanvas = document.createElement("canvas");
+                        modelCanvas.width = res;
+                        modelCanvas.height = res;
+                        modelCanvas.getContext("2d").drawImage(img, 0, 0, res, res);
+                        const modelPixels = modelCanvas.getContext("2d").getImageData(0, 0, res, res).data;
+                        const nRes = res * res;
+                        const modelLabL = new Float32Array(nRes);
+                        for (let i = 0; i < nRes; i++) {
+                            const [L] = rgbToLab(modelPixels[i*4], modelPixels[i*4+1], modelPixels[i*4+2]);
+                            modelLabL[i] = Math.max(0, L) / 100; // [0,1]
                         }
 
                         // Build input tensors
-                        const imageTensor = new ort.Tensor("float32", labL, [1, 1, res, res]);
+                        const imageTensor = new ort.Tensor("float32", modelLabL, [1, 1, res, res]);
                         const sh = dirToSH(lightX, lightY);
                         const lightTensor = new ort.Tensor("float32", sh, [1, 9, 1, 1]);
 
                         statusEl.textContent = "Running inference...";
+                        const t0 = performance.now();
 
                         const results = await session.run({
                             image: imageTensor,
                             target_light: lightTensor,
                         });
 
-                        const relitL = results.relit_image.data;
+                        const relitLModel = results.relit_image.data; // res×res float32 [0,1]
 
-                        // Reconstruct: replace L channel, keep original a,b
-                        relitCanvas.width = res;
-                        relitCanvas.height = res;
-                        const outData = relitCtx.createImageData(res, res);
+                        // ── Step 3+4: bilinear-sample relit L at full res, composite with original a/b ──
+                        relitCanvas.width = origW;
+                        relitCanvas.height = origH;
+                        const outData = relitCtx.createImageData(origW, origH);
                         const outPx = outData.data;
 
-                        for (let i = 0; i < n; i++) {
-                            // New L from model output (0..1) → Lab L (0..100)
-                            const newL = Math.max(0, Math.min(1, relitL[i])) * 100;
-                            const a = labA[i];
-                            const b = labB[i];
-
-                            // Lab → XYZ
-                            const fy = (newL + 16) / 116;
-                            const fx = a / 500 + fy;
-                            const fz = fy - b / 200;
+                        for (let i = 0; i < nOrig; i++) {
+                            const oy = Math.floor(i / origW);
+                            const ox = i % origW;
+                            // Map to model coords (center-aligned)
+                            const mx = (ox + 0.5) * res / origW - 0.5;
+                            const my = (oy + 0.5) * res / origH - 0.5;
+                            const x0 = Math.max(0, Math.floor(mx)), x1 = Math.min(res-1, x0+1);
+                            const y0 = Math.max(0, Math.floor(my)), y1 = Math.min(res-1, y0+1);
+                            const tx = mx - Math.floor(mx), ty = my - Math.floor(my);
+                            // Bilinear sample relit L (float32, no quantization)
+                            const newL = Math.max(0, Math.min(1,
+                                relitLModel[y0*res+x0]*(1-tx)*(1-ty) +
+                                relitLModel[y0*res+x1]*tx*(1-ty) +
+                                relitLModel[y1*res+x0]*(1-tx)*ty +
+                                relitLModel[y1*res+x1]*tx*ty
+                            )) * 100;
+                            // Composite: relit L + original full-res a/b → RGB
+                            const a = origLabA[i], b = origLabB[i];
+                            const fy = (newL+16)/116, fx = a/500+fy, fz = fy-b/200;
                             const eps = 0.008856, kappa = 903.3;
-                            const X = (fx * fx * fx > eps ? fx * fx * fx : (116 * fx - 16) / kappa) * 0.95047;
-                            const Y = (newL > kappa * eps ? fy * fy * fy : newL / kappa) * 1.00000;
-                            const Z = (fz * fz * fz > eps ? fz * fz * fz : (116 * fz - 16) / kappa) * 1.08883;
-
-                            // XYZ → linear RGB
-                            let lr =  3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z;
-                            let lg = -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z;
-                            let lb =  0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z;
-
-                            // Linear → sRGB
-                            lr = lr > 0.0031308 ? 1.055 * Math.pow(lr, 1 / 2.4) - 0.055 : 12.92 * lr;
-                            lg = lg > 0.0031308 ? 1.055 * Math.pow(lg, 1 / 2.4) - 0.055 : 12.92 * lg;
-                            lb = lb > 0.0031308 ? 1.055 * Math.pow(lb, 1 / 2.4) - 0.055 : 12.92 * lb;
-
-                            outPx[i * 4]     = Math.max(0, Math.min(255, Math.round(lr * 255)));
-                            outPx[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(lg * 255)));
-                            outPx[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(lb * 255)));
-                            outPx[i * 4 + 3] = 255;
+                            const X = (fx*fx*fx > eps ? fx*fx*fx : (116*fx-16)/kappa) * 0.95047;
+                            const Y = (newL > kappa*eps ? fy*fy*fy : newL/kappa);
+                            const Z = (fz*fz*fz > eps ? fz*fz*fz : (116*fz-16)/kappa) * 1.08883;
+                            let lr =  3.2404542*X - 1.5371385*Y - 0.4985314*Z;
+                            let lg = -0.9692660*X + 1.8760108*Y + 0.0415560*Z;
+                            let lb =  0.0556434*X - 0.2040259*Y + 1.0572252*Z;
+                            lr = lr > 0.0031308 ? 1.055*Math.pow(lr,1/2.4)-0.055 : 12.92*lr;
+                            lg = lg > 0.0031308 ? 1.055*Math.pow(lg,1/2.4)-0.055 : 12.92*lg;
+                            lb = lb > 0.0031308 ? 1.055*Math.pow(lb,1/2.4)-0.055 : 12.92*lb;
+                            outPx[i*4]   = Math.max(0, Math.min(255, Math.round(lr*255)));
+                            outPx[i*4+1] = Math.max(0, Math.min(255, Math.round(lg*255)));
+                            outPx[i*4+2] = Math.max(0, Math.min(255, Math.round(lb*255)));
+                            outPx[i*4+3] = 255;
                         }
 
                         relitCtx.putImageData(outData, 0, 0);
 
-                        statusEl.textContent = "Done!";
+                        downloadActions.style.display = "flex";
+                        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                        statusEl.textContent = `Done in ${elapsed}s`;
                     } catch (err) {
                         console.error("Relight error:", err);
                         statusEl.textContent = "Error: " + err.message;

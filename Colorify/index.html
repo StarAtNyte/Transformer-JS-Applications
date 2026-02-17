@@ -695,6 +695,7 @@
                     status.textContent = "Running inference...";
                     progressFill.style.width = "40%";
                     progressPercent.textContent = "40%";
+                    const t0 = performance.now();
 
                     const result = await workerCall(
                         { type: "colorize", rgbData, renderW, renderH, origW, origH },
@@ -742,7 +743,8 @@
                         link.click();
                     });
 
-                    status.textContent = "Colorization complete!";
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    status.textContent = `Colorization complete in ${elapsed}s`;
                     progress.style.display = "none";
                 } catch (error) {
                     status.textContent = "Error: " + error.message;

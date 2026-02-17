@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LineArt Vectorizer - Marked Line-art Vectorization</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 32px; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .grid { display: grid; gap: 24px; }
+        @media (min-width: 900px) {
+            .grid { grid-template-columns: 320px 1fr; }
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .icon { width: 20px; height: 20px; }
+        .dropzone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+        .dropzone p { color: #666; font-size: 0.9rem; }
+        .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+        #preview {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            margin: 12px auto 0;
+            display: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 12px;
+        }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+        .progress { margin-top: 12px; display: none; }
+        .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .model-status.loaded { background: #f0fdf4; }
+        .model-status.loading { background: #fef3c7; }
+        .model-status.error { background: #fef2f2; }
+        .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .model-status.loading .dot {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        .model-status.error .dot { background: #ef4444; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .sample-item {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+            background: #fff;
+            border: 1px solid #eee;
+        }
+        .sample-item:hover { transform: scale(1.05); }
+        .sample-item img { width: 100%; height: 100%; object-fit: contain; }
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-group label {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #6366f1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .scale-value { font-size: 0.8rem; color: #888; min-width: 36px; }
+        select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+        .canvas-wrap {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            flex-direction: column;
+        }
+        .canvas-pair {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+        .canvas-pair canvas {
+            display: none;
+            border-radius: 6px;
+            max-width: 100%;
+            height: auto;
+        }
+        .canvas-pair.side-by-side canvas {
+            max-width: 100%;
+        }
+        .canvas-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-align: center;
+            margin-top: 4px;
+        }
+        .canvas-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        .canvas-placeholder {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 48px;
+        }
+        .canvas-placeholder svg {
+            width: 64px; height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .vec-info {
+            font-size: 0.78rem;
+            color: #888;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.4;
+            min-height: 1.4em;
+        }
+        .estimation-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .canvas-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-secondary:disabled { background: #f1f5f9; color: #999; cursor: not-allowed; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .modal-image {
+            max-width: 100%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
+        .modal-image.zoomed {
+            cursor: zoom-out;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        .modal-controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .modal-close:hover { opacity: 0.7; }
+        .hidden { display: none !important; }
+
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+        footer a { color: #6366f1; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LineArt Vectorizer</h1>
+            <p class="subtitle">Convert line-art raster images to SVG vectors in the browser using ONNX Runtime</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status loading">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Loading model...</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Upload Line-art
+                    </h2>
+
+                    <div id="dropZone" class="dropzone">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <p>Drop line-art image here or click</p>
+                        <p class="hint">PNG, JPG, WebP — clean black lines on white</p>
+                        <img id="preview" alt="Preview">
+                    </div>
+
+                    <button id="vectorizeBtn" class="btn btn-primary" disabled>Vectorize</button>
+
+                    <div id="status" class="status"></div>
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Loading...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Settings
+                    </h2>
+                    <div class="control-group" style="margin-bottom: 12px">
+                        <label>Threshold:</label>
+                        <input id="thresholdSlider" type="range" min="0.01" max="0.5" step="0.01" value="0.10">
+                        <span id="thresholdValue" class="scale-value">0.10</span>
+                    </div>
+                    <div class="control-group" style="margin-bottom: 12px">
+                        <label>Stroke Width:</label>
+                        <input id="strokeSlider" type="range" min="0.1" max="5" step="0.1" value="0.512">
+                        <span id="strokeValue" class="scale-value">0.512</span>
+                    </div>
+                    <div class="control-group">
+                        <label>Max Iterations:</label>
+                        <input id="maxIterSlider" type="range" min="50" max="1000" step="50" value="500">
+                        <span id="maxIterValue" class="scale-value">500</span>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                        </svg>
+                        Sample Images
+                    </h2>
+                    <div id="sampleGallery" class="sample-grid"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2 style="margin-bottom: 16px">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Vectorization Result
+                    </h2>
+
+                    <div class="canvas-wrap">
+                        <div id="estimationSpinner" class="estimation-spinner">
+                            <div class="spinner"></div>
+                            <p id="spinnerText">Vectorizing...</p>
+                        </div>
+                        <div id="canvasPair" class="canvas-pair side-by-side">
+                            <div class="canvas-col">
+                                <canvas id="origCanvas"></canvas>
+                                <span class="canvas-label">Original</span>
+                            </div>
+                            <div class="canvas-col">
+                                <canvas id="liveCanvas"></canvas>
+                                <span class="canvas-label" id="liveLabel" style="display:none">Vector Output</span>
+                            </div>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            <p>Upload or select a line-art image, then click "Vectorize"</p>
+                        </div>
+                    </div>
+                    <div id="canvasActions" class="canvas-actions hidden">
+                        <button id="downloadSvgBtn" class="btn-secondary">Download SVG</button>
+                        <button id="downloadPngBtn" class="btn-secondary">Download PNG</button>
+                        <button id="downloadOrigBtn" class="btn-secondary">Download Original</button>
+                        <button id="viewOrigBtn" class="btn-secondary">View Original</button>
+                        <button id="viewResultBtn" class="btn-secondary">View Result</button>
+                    </div>
+                    <p id="vecInfo" class="vec-info"></p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://huggingface.co/nopperl/marked-lineart-vectorizer" target="_blank">Marked Line-art Vectorizer</a>
+                &
+                <a href="https://onnxruntime.ai/" target="_blank">ONNX Runtime Web</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <img id="modalImage" class="modal-image" alt="Full size image">
+            <div class="modal-controls">
+                <button id="modalDownloadBtn" class="btn-secondary">Download</button>
+                <button id="modalCloseBtn" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
+    <script>
+        // ─── Sample line-art images from open sources ───
+        const SAMPLE_IMAGES = [
+            'images/01.png',
+            'images/02.png',
+        ];
+
+        const MODEL_URL = 'https://huggingface.co/nopperl/marked-lineart-vectorizer/resolve/main/model.onnx';
+        const MODEL_SIZE = 512;
+
+        let session = null;
+        let modelReady = false;
+        let currentImageUrl = null;
+        let svgString = null;
+        let isVectorizing = false;
+
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const vectorizeBtn = document.getElementById('vectorizeBtn');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progressFill');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressPercent = document.getElementById('progressPercent');
+        const modelStatus = document.getElementById('modelStatus');
+        const modelStatusText = document.getElementById('modelStatusText');
+        const sampleGallery = document.getElementById('sampleGallery');
+        const origCanvas = document.getElementById('origCanvas');
+        const origCtx = origCanvas.getContext('2d');
+        const liveCanvas = document.getElementById('liveCanvas');
+        const liveCtx = liveCanvas.getContext('2d');
+        const liveLabel = document.getElementById('liveLabel');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const vecInfo = document.getElementById('vecInfo');
+        const canvasActions = document.getElementById('canvasActions');
+        const downloadSvgBtn = document.getElementById('downloadSvgBtn');
+        const downloadPngBtn = document.getElementById('downloadPngBtn');
+        const downloadOrigBtn = document.getElementById('downloadOrigBtn');
+        const viewOrigBtn = document.getElementById('viewOrigBtn');
+        const viewResultBtn = document.getElementById('viewResultBtn');
+        const estimationSpinner = document.getElementById('estimationSpinner');
+        const spinnerText = document.getElementById('spinnerText');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const modalClose = document.querySelector('.modal-close');
+        const thresholdSlider = document.getElementById('thresholdSlider');
+        const thresholdValue = document.getElementById('thresholdValue');
+        const strokeSlider = document.getElementById('strokeSlider');
+        const strokeValue = document.getElementById('strokeValue');
+        const maxIterSlider = document.getElementById('maxIterSlider');
+        const maxIterValue = document.getElementById('maxIterValue');
+
+        // ─── Init sample gallery ───
+        function initSampleGallery() {
+            sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) => `
+                <div class="sample-item" data-index="${i}">
+                    <img src="${url}" alt="Sample ${i + 1}">
+                </div>
+            `).join('');
+        }
+        initSampleGallery();
+
+        // ─── Load ONNX model ───
+        async function loadModel() {
+            try {
+                progress.style.display = 'block';
+                progressLabel.textContent = 'Downloading model...';
+                modelStatusText.textContent = 'Downloading model...';
+
+                const response = await fetch(MODEL_URL);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const contentLength = response.headers.get('content-length');
+                const total = contentLength ? parseInt(contentLength) : 0;
+                const reader = response.body.getReader();
+                const chunks = [];
+                let received = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    received += value.length;
+                    if (total > 0) {
+                        const pct = Math.round((received / total) * 100);
+                        progressFill.style.width = `${pct}%`;
+                        progressPercent.textContent = `${pct}%`;
+                        progressLabel.textContent = `Downloading model (${(received / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB)...`;
+                    }
+                }
+
+                const modelBuffer = new Uint8Array(received);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    modelBuffer.set(chunk, offset);
+                    offset += chunk.length;
+                }
+
+                progressLabel.textContent = 'Initializing ONNX session...';
+                session = await ort.InferenceSession.create(modelBuffer.buffer, {
+                    executionProviders: ['webgpu', 'webgl', 'wasm'],
+                });
+
+                modelReady = true;
+                modelStatus.className = 'model-status loaded';
+                modelStatusText.textContent = 'Model ready';
+                vectorizeBtn.disabled = false;
+                progress.style.display = 'none';
+            } catch (e) {
+                console.error('Model load error:', e);
+                modelStatus.className = 'model-status error';
+                modelStatusText.textContent = 'Failed to load model';
+                progress.style.display = 'none';
+                status.textContent = 'Error: ' + e.message;
+            }
+        }
+        loadModel();
+
+        // ─── Settings sliders ───
+        thresholdSlider.addEventListener('input', (e) => {
+            thresholdValue.textContent = parseFloat(e.target.value).toFixed(2);
+        });
+        strokeSlider.addEventListener('input', (e) => {
+            strokeValue.textContent = parseFloat(e.target.value).toFixed(3);
+        });
+        maxIterSlider.addEventListener('input', (e) => {
+            maxIterValue.textContent = e.target.value;
+        });
+
+        // ─── Image upload ───
+        dropZone.addEventListener('click', () => imageInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleImageFile(file);
+        });
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleImageFile(file);
+        });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                currentImageUrl = e.target.result;
+                svgString = null;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        sampleGallery.addEventListener('click', (e) => {
+            const item = e.target.closest('.sample-item');
+            if (item) {
+                const url = SAMPLE_IMAGES[item.dataset.index];
+                preview.src = url;
+                preview.style.display = 'block';
+                currentImageUrl = url;
+                svgString = null;
+            }
+        });
+
+        // ─── Modal ───
+        function openModal(src, filename) {
+            modalImage.src = src;
+            modalImage.classList.remove('zoomed');
+            modalDownloadBtn.onclick = () => downloadData(src, filename);
+            imageModal.classList.add('open');
+        }
+
+        function closeModal() { imageModal.classList.remove('open'); }
+
+        modalImage.addEventListener('click', () => modalImage.classList.toggle('zoomed'));
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalClose.addEventListener('click', closeModal);
+        imageModal.addEventListener('click', (e) => { if (e.target === imageModal) closeModal(); });
+
+        // ─── Download ───
+        function downloadData(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        downloadOrigBtn.addEventListener('click', () => {
+            const ts = new Date().toISOString().slice(0, 10);
+            downloadData(origCanvas.toDataURL('image/png'), `lineart-original-${ts}.png`);
+        });
+
+        downloadSvgBtn.addEventListener('click', () => {
+            if (!svgString) return;
+            const ts = new Date().toISOString().slice(0, 10);
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            downloadData(URL.createObjectURL(blob), `lineart-vectorized-${ts}.svg`);
+        });
+
+        downloadPngBtn.addEventListener('click', () => {
+            if (!svgString) return;
+            const ts = new Date().toISOString().slice(0, 10);
+            // Render SVG at full original resolution to PNG
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            const tmpImg = new Image();
+            tmpImg.onload = () => {
+                const c = document.createElement('canvas');
+                c.width = tmpImg.naturalWidth;
+                c.height = tmpImg.naturalHeight;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.drawImage(tmpImg, 0, 0);
+                downloadData(c.toDataURL('image/png'), `lineart-vectorized-${ts}.png`);
+                URL.revokeObjectURL(url);
+            };
+            tmpImg.src = url;
+        });
+
+        viewOrigBtn.addEventListener('click', () => {
+            openModal(origCanvas.toDataURL('image/png'), 'original.png');
+        });
+
+        viewResultBtn.addEventListener('click', () => {
+            openModal(liveCanvas.toDataURL('image/png'), 'vectorized.png');
+        });
+
+        // ─── Core: image preprocessing helpers ───
+
+        // Convert ImageData (RGBA HWC) -> Float32Array CHW [0,1]
+        function imageDataToCHW(imageData, w, h) {
+            const rgba = imageData.data;
+            const chw = new Float32Array(3 * h * w);
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const srcIdx = (y * w + x) * 4;
+                    const r = rgba[srcIdx] / 255;
+                    const g = rgba[srcIdx + 1] / 255;
+                    const b = rgba[srcIdx + 2] / 255;
+                    chw[0 * h * w + y * w + x] = r;
+                    chw[1 * h * w + y * w + x] = g;
+                    chw[2 * h * w + y * w + x] = b;
+                }
+            }
+            return chw;
+        }
+
+        function rgbToGray(chw, h, w) {
+            const gray = new Float32Array(h * w);
+            for (let i = 0; i < h * w; i++) {
+                gray[i] = chw[i] * 0.2989 + chw[h * w + i] * 0.587 + chw[2 * h * w + i] * 0.114;
+            }
+            return gray;
+        }
+
+        // Sample a random black pixel from the image (returns [x_norm, y_norm])
+        function sampleBlackPixel(chw, h, w) {
+            const gray = rgbToGray(chw, h, w);
+            const blacks = [];
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    if (Math.abs(gray[y * w + x] - 1.0) > 0.5) {
+                        blacks.push([x / w, y / h]);
+                    }
+                }
+            }
+            if (blacks.length === 0) return null;
+            return blacks[Math.floor(Math.random() * blacks.length)];
+        }
+
+        // Place a blue marker on the image at pixel position
+        function placePointOnImg(chw, h, w, px, py) {
+            // Match Python: if coords are integers use [int, int+1), else use [floor, ceil)
+            let x0, x1, y0, y1;
+            if (px === Math.floor(px)) {
+                x0 = px | 0; x1 = x0 + 1;
+            } else {
+                x0 = Math.floor(px); x1 = Math.ceil(px);
+            }
+            if (py === Math.floor(py)) {
+                y0 = py | 0; y1 = y0 + 1;
+            } else {
+                y0 = Math.floor(py); y1 = Math.ceil(py);
+            }
+            for (let y = Math.max(0, y0); y < Math.min(h, y1); y++) {
+                for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) {
+                    chw[0 * h * w + y * w + x] = 0; // R
+                    chw[1 * h * w + y * w + x] = 0; // G
+                    chw[2 * h * w + y * w + x] = 1; // B
+                }
+            }
+        }
+
+        // Center image on a point (with white padding), returns new CHW
+        function centerOnPoint(chw, h, w, normX, normY) {
+            const halfW = Math.round(w / 2);
+            const halfH = Math.round(h / 2);
+            const px = Math.round(normX * w);
+            const py = Math.round(normY * h);
+            const out = new Float32Array(3 * h * w);
+            out.fill(1.0); // white background
+            for (let c = 0; c < 3; c++) {
+                for (let dy = 0; dy < h; dy++) {
+                    for (let dx = 0; dx < w; dx++) {
+                        const srcY = dy + py - halfH;
+                        const srcX = dx + px - halfW;
+                        if (srcX >= 0 && srcX < w && srcY >= 0 && srcY < h) {
+                            out[c * h * w + dy * w + dx] = chw[c * h * w + srcY * w + srcX];
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+
+        // Compute diff: set pixels that match reconstruction back to white
+        function diffRemainingImg(original, reconstruction, h, w) {
+            const remaining = new Float32Array(original);
+            for (let c = 0; c < 3; c++) {
+                for (let i = 0; i < h * w; i++) {
+                    const oVal = original[c * h * w + i] < 1 ? 0 : original[c * h * w + i];
+                    const rVal = reconstruction[c * h * w + i] < 1 ? 0 : reconstruction[c * h * w + i];
+                    if (oVal === rVal) {
+                        remaining[c * h * w + i] = 1;
+                    }
+                }
+            }
+            return remaining;
+        }
+
+        // Count dark pixels (summed across all 3 channels, matching Python's (chw < 0.5).sum())
+        function countDarkPixels(chw, h, w) {
+            let count = 0;
+            for (let c = 0; c < 3; c++) {
+                for (let i = 0; i < h * w; i++) {
+                    if (chw[c * h * w + i] < 0.5) count++;
+                }
+            }
+            return count;
+        }
+
+        // ─── Build SVG from bezier curves ───
+        function buildSvg(curves, imgW, imgH, strokeWidth) {
+            let paths = '';
+            for (const curve of curves) {
+                // curve is [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in pixel coords
+                const [p0, p1, p2, p3] = curve;
+                paths += `<path d="M ${p0[0].toFixed(2)} ${p0[1].toFixed(2)} C ${p1[0].toFixed(2)} ${p1[1].toFixed(2)}, ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}, ${p3[0].toFixed(2)} ${p3[1].toFixed(2)}" stroke="black" stroke-width="${strokeWidth}" stroke-linecap="round" fill="none"/>`;
+            }
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="${imgW}px" height="${imgH}px" viewBox="0 0 ${imgW} ${imgH}">${paths}</svg>`;
+        }
+
+        // ─── Rasterize curves to CHW for comparison ───
+        function rasterizeCurvesToCHW(curves, w, h, strokeWidth) {
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = w;
+            tmpCanvas.height = h;
+            const ctx = tmpCanvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = strokeWidth;
+            ctx.lineCap = 'round';
+            for (const curve of curves) {
+                const [p0, p1, p2, p3] = curve;
+                ctx.beginPath();
+                ctx.moveTo(p0[0], p0[1]);
+                ctx.bezierCurveTo(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]);
+                ctx.stroke();
+            }
+            const imageData = ctx.getImageData(0, 0, w, h);
+            return imageDataToCHW(imageData, w, h);
+        }
+
+        // ─── Main vectorization ───
+        vectorizeBtn.addEventListener('click', async () => {
+            if (!modelReady || !currentImageUrl || isVectorizing) return;
+            isVectorizing = true;
+            vectorizeBtn.disabled = true;
+            status.textContent = 'Preparing image...';
+            canvasActions.classList.add('hidden');
+            liveCanvas.style.display = 'none';
+            liveLabel.style.display = 'none';
+
+            const thresholdRatio = parseFloat(thresholdSlider.value);
+            const strokeWidth = parseFloat(strokeSlider.value);
+            const maxIter = parseInt(maxIterSlider.value);
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+                try {
+                    const origW = img.naturalWidth;
+                    const origH = img.naturalHeight;
+
+                    // Scale to fit MODEL_SIZE, preserving aspect ratio
+                    let scale;
+                    if (origH >= origW) {
+                        scale = MODEL_SIZE / origH;
+                    } else {
+                        scale = MODEL_SIZE / origW;
+                    }
+                    const scaledW = Math.round(origW * scale);
+                    const scaledH = Math.round(origH * scale);
+
+                    // Draw original
+                    origCanvas.width = origW;
+                    origCanvas.height = origH;
+                    origCtx.drawImage(img, 0, 0, origW, origH);
+                    origCanvas.style.display = 'block';
+                    canvasPlaceholder.style.display = 'none';
+                    estimationSpinner.style.display = 'block';
+
+                    // Setup live canvas at model size (avoids display scaling artifacts)
+                    liveCanvas.width = MODEL_SIZE;
+                    liveCanvas.height = MODEL_SIZE;
+                    liveCtx.fillStyle = 'white';
+                    liveCtx.fillRect(0, 0, MODEL_SIZE, MODEL_SIZE);
+                    liveCtx.strokeStyle = 'black';
+                    liveCtx.lineWidth = strokeWidth;
+                    liveCtx.lineCap = 'round';
+                    liveCtx.lineJoin = 'round';
+                    liveCanvas.style.display = 'block';
+                    liveLabel.style.display = 'block';
+
+                    // Scale factor from model coords to display coords
+                    const invScale = 1 / scale;
+
+                    // Create model-sized canvas with white padding
+                    const modelCanvas = document.createElement('canvas');
+                    modelCanvas.width = MODEL_SIZE;
+                    modelCanvas.height = MODEL_SIZE;
+                    const modelCtx = modelCanvas.getContext('2d');
+                    modelCtx.fillStyle = 'white';
+                    modelCtx.fillRect(0, 0, MODEL_SIZE, MODEL_SIZE);
+                    modelCtx.drawImage(img, 0, 0, scaledW, scaledH);
+
+                    const pixelData = modelCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+                    const rasterImg = imageDataToCHW(pixelData, MODEL_SIZE, MODEL_SIZE);
+
+                    const t0 = performance.now();
+
+                    // Iterative vectorization loop
+                    const allCurves = []; // normalized [0,1] curves
+                    let remaining = new Float32Array(rasterImg);
+                    const totalDark = countDarkPixels(rasterImg, MODEL_SIZE, MODEL_SIZE);
+                    const threshold = totalDark * thresholdRatio;
+
+                    let iter = 0;
+                    const rasterStrokeWidth = strokeWidth; // must match SVG stroke width, same as Python
+
+                    while (iter < maxIter) {
+                        remaining = allCurves.length > 0
+                            ? diffRemainingImg(rasterImg, rasterizeCurvesToCHW(
+                                allCurves.map(c => c.map(p => [p[0] * MODEL_SIZE, p[1] * MODEL_SIZE])),
+                                MODEL_SIZE, MODEL_SIZE, rasterStrokeWidth), MODEL_SIZE, MODEL_SIZE)
+                            : new Float32Array(rasterImg);
+
+                        const darkLeft = countDarkPixels(remaining, MODEL_SIZE, MODEL_SIZE);
+                        if (darkLeft <= threshold) break;
+
+                        const mark = sampleBlackPixel(remaining, MODEL_SIZE, MODEL_SIZE);
+                        if (!mark) break;
+
+                        // Prepare marked centered image
+                        const centered = new Float32Array(remaining);
+                        const markPxX = mark[0] * MODEL_SIZE;
+                        const markPxY = mark[1] * MODEL_SIZE;
+                        placePointOnImg(centered, MODEL_SIZE, MODEL_SIZE, markPxX, markPxY);
+                        const centeredCrop = centerOnPoint(centered, MODEL_SIZE, MODEL_SIZE, mark[0], mark[1]);
+
+                        // Run inference
+                        const inputTensor = new ort.Tensor('float32', centeredCrop, [1, 3, MODEL_SIZE, MODEL_SIZE]);
+                        const results = await session.run({ 'marked_raster_image': inputTensor });
+                        const outputData = results['cubic_bezier_curve'].data;
+                        // Output shape: [1, 4, 2] — 4 control points
+                        const points = [];
+                        for (let i = 0; i < 4; i++) {
+                            let px = outputData[i * 2];
+                            let py = outputData[i * 2 + 1];
+                            // Reverse centering
+                            px -= (0.5 - mark[0]);
+                            py -= (0.5 - mark[1]);
+                            points.push([px, py]);
+                        }
+                        allCurves.push(points);
+
+                        // Draw this curve live on the canvas (model-space coords)
+                        const p0 = points[0], p1 = points[1], p2 = points[2], p3 = points[3];
+                        liveCtx.beginPath();
+                        liveCtx.moveTo(p0[0] * MODEL_SIZE, p0[1] * MODEL_SIZE);
+                        liveCtx.bezierCurveTo(
+                            p1[0] * MODEL_SIZE, p1[1] * MODEL_SIZE,
+                            p2[0] * MODEL_SIZE, p2[1] * MODEL_SIZE,
+                            p3[0] * MODEL_SIZE, p3[1] * MODEL_SIZE
+                        );
+                        liveCtx.stroke();
+
+                        iter++;
+                        if (iter % 5 === 0) {
+                            spinnerText.textContent = `Vectorizing... (${iter} curves, ${darkLeft} px remaining)`;
+                            vecInfo.textContent = `${iter} curves so far...`;
+                            // Yield to UI so canvas repaints
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    }
+
+                    // Build final SVG for download
+                    const finalCurves = allCurves.map(curve =>
+                        curve.map(p => [
+                            p[0] * MODEL_SIZE * invScale,
+                            p[1] * MODEL_SIZE * invScale,
+                        ])
+                    );
+                    svgString = buildSvg(finalCurves, origW, origH, strokeWidth);
+
+                    estimationSpinner.style.display = 'none';
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    status.textContent = `Done in ${elapsed}s — ${allCurves.length} curves extracted`;
+                    vecInfo.textContent = `${allCurves.length} cubic Bézier curves | ${origW}×${origH}px`;
+                    canvasActions.classList.remove('hidden');
+                } catch (e) {
+                    status.textContent = 'Error: ' + e.message;
+                    console.error(e);
+                    estimationSpinner.style.display = 'none';
+                }
+                isVectorizing = false;
+                vectorizeBtn.disabled = false;
+            };
+            img.onerror = () => {
+                status.textContent = 'Failed to load image';
+                estimationSpinner.style.display = 'none';
+                isVectorizing = false;
+                vectorizeBtn.disabled = false;
+            };
+            img.src = currentImageUrl;
+        });
+    </script>
+</body>
+</html>

@@ -320,6 +320,7 @@
         let currentImageUrl = null;
         let painting = false;
         let modelLoaded = false;
+        let paintStart = 0;
 
         // ── Sample images ──
         const SAMPLE_IMAGES = [
@@ -640,13 +641,15 @@
                     patches2canvas(new Float32Array(displayCanvas), mGrid, S, paintCtx);
                     break;
                 }
-                case "done":
-                    statusEl.textContent = msg.stopped ? "Stopped." : "Done!";
+                case "done": {
+                    const elapsed = ((performance.now() - paintStart) / 1000).toFixed(1);
+                    statusEl.textContent = msg.stopped ? "Stopped." : `Done in ${elapsed}s`;
                     progress.style.display = "none";
                     painting = false;
                     stopBtn.style.display = "none";
                     updatePaintBtn();
                     break;
+                }
             }
         };
 
@@ -718,6 +721,7 @@
             paintCanvas.style.display = "block";
             progress.style.display = "block";
             statusEl.textContent = "Painting...";
+            paintStart = performance.now();
 
             const mGrid = parseInt(gridSelect.value);
             const S = PATCH_SIZE;
