@@ -1,19 +1,13 @@
-# ONNX exported models
-stylized-neural-painting
-COMING_SOON_MODELS.md
-neural-painting
+# Ignore everything in PortableModels...
+PortableModels/*
+# ...except the export scripts
+!PortableModels/export_*.py
 
-# Export scripts
-!export_*.py
+COMING_SOON_MODELS.md
 
 # Python
 __pycache__/
 *.pyc
-
-# PyTorch checkpoints
-checkpoints_*/
-*.pt
-*.pth
 
 # OS
 .DS_Store
