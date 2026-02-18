@@ -1,30 +1,32 @@
-# TFJS Apps
+# Browser ML Demos
 
-ML demos that run entirely in the browser. No server, no uploads — models execute locally via Web Workers using WebGPU where available, with a WASM fallback. Most use [Transformers.js](https://huggingface.co/docs/transformers.js); a few run ONNX models directly through [ONNX Runtime Web](https://onnxruntime.ai/).
+Computer vision models running entirely in the browser — no server, no uploads, no cloud. Inference runs locally via Web Workers, using WebGPU where available with a WASM fallback. Built with [Transformers.js](https://huggingface.co/docs/transformers.js) and [ONNX Runtime Web](https://onnxruntime.ai/).
 
 ## Demos
 
-**Feature Explorer** — Hover over an image to see a patch-level similarity heatmap. Uses DINOv3 features.
+**Feature Explorer** — Hover over an image to see a patch-level similarity heatmap computed from DINOv3 features.
 
-**Cross-Image Correspondence** — Upload two images, hover on one to find the closest matching patch on the other.
+**Cross-Image Correspondence** — Upload two images and hover on one to find the closest matching patch on the other.
 
-**Depth Estimation** — Monocular depth from a single photo. Colorized output with Inferno, Viridis, or grayscale.
+**DepthLens** — Monocular depth estimation from a single photo, with Inferno, Viridis, and grayscale colormaps.
 
-**Neural Line Art Vectorization** — Converts raster line art into clean vector SVG paths.
+**Neural Line Art Vectorization** — Converts raster line art directly into clean, scalable vector SVG paths.
 
-**Portrait Relighting** — Change the lighting direction on a portrait from a single photo.
+**Portrait Relighting** — Shift the lighting direction on a portrait photo without a 3D scan.
 
-**Colorify** — Colorize black-and-white photos and video frames.
+**Colorify** — Colorize black-and-white photos and video frames in real time.
 
-**FaceParser** — Semantic face segmentation (hair, skin, eyes, etc.) powered by SegFormer.
+**FaceParser** — Semantic face segmentation (hair, skin, eyes, lips, etc.) powered by SegFormer.
 
-**ObjectDetect** — Real-time object detection with bounding boxes, confidence scores, and labels.
+**ObjectDetect** — Real-time object detection with bounding boxes, confidence scores, and class labels.
 
-**Vision Language** — Ask questions about images, powered by Transformers.js.
+**Vision Language** — Ask natural-language questions about any image.
 
-**FastVLM** — Vision-language model with WebGPU acceleration.
+**FastVLM** — Fast vision-language model with WebGPU acceleration.
 
-**Revive** — Face restoration and colorization for degraded, blurry, or grayscale inputs. Powered by GPEN.
+**Revive** — Face restoration and colorization for degraded, blurry, or low-quality inputs, powered by GPEN.
+
+**InkTrace** — Convert any photo into clean contour line art using the Informative Drawings model.
 
 ## Running locally
 
