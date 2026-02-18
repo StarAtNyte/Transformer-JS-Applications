@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revive - Face Restoration &amp; Colorization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        @media (min-width: 900px) {
+            .grid {
+                grid-template-columns: 320px 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .dropzone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .dropzone:hover,
+        .dropzone.dragover {
+            border-color: #10b981;
+        }
+
+        .dropzone p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .dropzone .hint {
+            color: #999;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        #preview {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            margin: 12px auto 0;
+            display: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 12px;
+        }
+
+        .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .progress {
+            margin-top: 12px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #eee;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .model-status.loaded {
+            background: #f0fdf4;
+        }
+
+        .model-status.loading {
+            background: #fef3c7;
+        }
+
+        .model-status.error {
+            background: #fef2f2;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            flex-shrink: 0;
+        }
+
+        .model-status.loading .dot {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        .model-status.error .dot {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .model-select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .sample-item {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .sample-item:hover {
+            transform: scale(1.05);
+        }
+
+        .sample-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #10b981;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .scale-value {
+            font-size: 0.8rem;
+            color: #888;
+            min-width: 36px;
+        }
+
+        .canvas-wrap {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            flex-direction: column;
+        }
+
+        .canvas-pair {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+
+        .canvas-pair canvas {
+            display: none;
+            border-radius: 6px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .canvas-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .canvas-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .canvas-placeholder {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 48px;
+        }
+
+        .canvas-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .estimation-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #10b981;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .canvas-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #cbd5e1;
+        }
+
+        .btn-secondary:disabled {
+            background: #f1f5f9;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .result-info {
+            font-size: 0.78rem;
+            color: #888;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.4;
+            min-height: 1.4em;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .modal-image {
+            max-width: 100%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
+
+        .modal-image.zoomed {
+            cursor: zoom-out;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+
+        .modal-controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .modal-close:hover {
+            opacity: 0.7;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .tip {
+            font-size: 0.78rem;
+            color: #888;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: #10b981;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Revive</h1>
+            <p class="subtitle">Face restoration &amp; colorization — in the browser</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status loading">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Loading model...</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18">
+                            </path>
+                        </svg>
+                        Task
+                    </h2>
+
+                    <select id="taskSelect" class="model-select">
+                        <option value="restoration">Face Restoration</option>
+                        <option value="colorization">Face Colorization</option>
+                    </select>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                        Upload Face Image
+                    </h2>
+
+                    <div id="dropZone" class="dropzone">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <p>Drop image here or click</p>
+                        <p class="hint">PNG, JPG, WebP — ideally a face portrait</p>
+                        <img id="preview" alt="Preview">
+                    </div>
+
+                    <button id="restoreBtn" class="btn btn-primary" disabled>Run</button>
+
+                    <div id="status" class="status"></div>
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Loading...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+
+                    <p class="tip">
+                        <strong>Restore:</strong> degraded/blurry faces. <strong>Colorize:</strong> grayscale faces.
+                    </p>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                            </path>
+                        </svg>
+                        Sample Images
+                    </h2>
+                    <div id="sampleGallery" class="sample-grid"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2 style="margin-bottom: 16px">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z">
+                            </path>
+                        </svg>
+                        Result
+                    </h2>
+
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <label>Blend:</label>
+                            <input id="blendSlider" type="range" min="0" max="1" step="0.05" value="1">
+                            <span id="blendValue" class="scale-value">1.00</span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrap">
+                        <div id="estimationSpinner" class="estimation-spinner">
+                            <div class="spinner"></div>
+                            <p>Conjuring pixels...</p>
+                        </div>
+                        <div id="canvasPair" class="canvas-pair">
+                            <div class="canvas-col">
+                                <canvas id="origCanvas"></canvas>
+                                <span class="canvas-label">Original</span>
+                            </div>
+                            <div class="canvas-col">
+                                <canvas id="resultCanvas"></canvas>
+                                <span class="canvas-label">Output</span>
+                            </div>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z">
+                                </path>
+                            </svg>
+                            <p>Upload a face image, then click "Run"</p>
+                        </div>
+                    </div>
+
+                    <div id="canvasActions" class="canvas-actions hidden">
+                        <button id="downloadOrigBtn" class="btn-secondary">Download Original</button>
+                        <button id="downloadResultBtn" class="btn-secondary">Download Output</button>
+                        <button id="viewOrigBtn" class="btn-secondary">View Original</button>
+                        <button id="viewResultBtn" class="btn-secondary">View Output</button>
+                    </div>
+                    <p id="resultInfo" class="result-info"></p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://github.com/yangxy/GPEN" target="_blank">GPEN (CVPR 2021)</a>
+                &amp;
+                <a href="https://onnxruntime.ai/" target="_blank">ONNX Runtime Web</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <img id="modalImage" class="modal-image" alt="Full size image">
+            <div class="modal-controls">
+                <button id="modalDownloadBtn" class="btn-secondary">Download</button>
+                <button id="modalCloseBtn" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // ── Inline Web Worker ──
+        const workerCode = `
+            let ortLib = null;
+            let session = null;
+            let loadedModelFile = null;
+
+            async function initOrt() {
+                if (!ortLib) {
+                    importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js");
+                    ortLib = self.ort;
+                    ortLib.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+                    // try WebGPU
+                    try {
+                        if (self.navigator?.gpu) {
+                            const adapter = await navigator.gpu.requestAdapter();
+                            if (adapter) ortLib.env.webgpu = { powerPreference: "high-performance" };
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            self.onmessage = async (e) => {
+                const { type, id } = e.data;
+
+                if (type === "load") {
+                    try {
+                        self.postMessage({ id, type: "status", text: "Loading ONNX Runtime..." });
+                        await initOrt();
+
+                        const modelFile = e.data.modelFile;
+                        if (session && loadedModelFile === modelFile) {
+                            self.postMessage({ id, type: "loaded" });
+                            return;
+                        }
+                        if (session) { session.release(); session = null; }
+
+                        self.postMessage({ id, type: "status", text: "Downloading " + modelFile + "..." });
+                        const modelUrl = e.data.modelBaseUrl + modelFile;
+
+                        // detect providers
+                        const providers = [];
+                        try {
+                            if (self.navigator?.gpu) {
+                                const adapter = await navigator.gpu.requestAdapter();
+                                if (adapter) providers.push("webgpu");
+                            }
+                        } catch(e) {}
+                        providers.push("wasm");
+
+                        session = await ortLib.InferenceSession.create(modelUrl, {
+                            executionProviders: providers,
+                            graphOptimizationLevel: "all",
+                        });
+                        loadedModelFile = modelFile;
+                        self.postMessage({ id, type: "loaded" });
+                    } catch (err) {
+                        self.postMessage({ id, type: "error", message: err.message });
+                    }
+                    return;
+                }
+
+                if (type === "restore") {
+                    try {
+                        const { pixels, w, h, modelSize } = e.data;
+                        const size = modelSize; // 512 or 256
+
+                        // --- preprocess: resize + normalize to [-1, 1] in NCHW RGB ---
+                        // pixels is RGBA Uint8ClampedArray of size w*h*4
+                        // We need to resize to size x size, then extract RGB and normalize
+                        const rgba = new Uint8ClampedArray(pixels);
+
+                        // bilinear resize
+                        const scaleX = w / size;
+                        const scaleY = h / size;
+                        const rgb = new Float32Array(3 * size * size);
+                        for (let y = 0; y < size; y++) {
+                            for (let x = 0; x < size; x++) {
+                                const sx = (x + 0.5) * scaleX - 0.5;
+                                const sy = (y + 0.5) * scaleY - 0.5;
+                                const x0 = Math.max(0, Math.floor(sx));
+                                const x1 = Math.min(w - 1, x0 + 1);
+                                const y0 = Math.max(0, Math.floor(sy));
+                                const y1 = Math.min(h - 1, y0 + 1);
+                                const dx = sx - x0;
+                                const dy = sy - y0;
+                                for (let c = 0; c < 3; c++) {
+                                    const v00 = rgba[(y0 * w + x0) * 4 + c];
+                                    const v01 = rgba[(y0 * w + x1) * 4 + c];
+                                    const v10 = rgba[(y1 * w + x0) * 4 + c];
+                                    const v11 = rgba[(y1 * w + x1) * 4 + c];
+                                    const v = v00*(1-dx)*(1-dy) + v01*dx*(1-dy) + v10*(1-dx)*dy + v11*dx*dy;
+                                    // NCHW: channel-first; normalize [0,255] -> [-1, 1]
+                                    rgb[c * size * size + y * size + x] = (v / 127.5) - 1.0;
+                                }
+                            }
+                        }
+
+                        const inputName = session.inputNames[0];
+                        const inputTensor = new ortLib.Tensor("float32", rgb, [1, 3, size, size]);
+                        const results = await session.run({ [inputName]: inputTensor });
+
+                        const outputName = session.outputNames[0];
+                        const output = results[outputName].data; // Float32Array, NCHW [-1,1]
+
+                        // post-process: [-1,1] -> [0,255] RGBA
+                        const outRGBA = new Uint8ClampedArray(size * size * 4);
+                        for (let y = 0; y < size; y++) {
+                            for (let x = 0; x < size; x++) {
+                                const i = y * size + x;
+                                const r = Math.round(Math.min(1, Math.max(-1, output[0 * size * size + i])) * 127.5 + 127.5);
+                                const g = Math.round(Math.min(1, Math.max(-1, output[1 * size * size + i])) * 127.5 + 127.5);
+                                const b = Math.round(Math.min(1, Math.max(-1, output[2 * size * size + i])) * 127.5 + 127.5);
+                                outRGBA[i * 4 + 0] = r;
+                                outRGBA[i * 4 + 1] = g;
+                                outRGBA[i * 4 + 2] = b;
+                                outRGBA[i * 4 + 3] = 255;
+                            }
+                        }
+
+                        self.postMessage({ id, type: "result", outRGBA: outRGBA.buffer, size }, [outRGBA.buffer]);
+                    } catch (err) {
+                        self.postMessage({ id, type: "error", message: err.message });
+                    }
+                    return;
+                }
+            };
+        `;
+
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: "application/javascript" })));
+
+        let msgId = 0;
+        const pending = new Map();
+
+        function workerCall(msg, transfer) {
+            return new Promise((resolve, reject) => {
+                const id = ++msgId;
+                pending.set(id, { resolve, reject });
+                worker.postMessage({ ...msg, id }, transfer || []);
+            });
+        }
+
+        worker.onmessage = (e) => {
+            const { id, type } = e.data;
+            if (type === 'status') { modelStatusText.textContent = e.data.text; return; }
+            if (type === 'progress') {
+                progressFill.style.width = `${e.data.percent}%`;
+                progressPercent.textContent = `${e.data.percent}%`;
+                return;
+            }
+            const p = pending.get(id);
+            if (!p) return;
+            pending.delete(id);
+            if (type === 'error') p.reject(new Error(e.data.message));
+            else p.resolve(e.data);
+        };
+
+        const MODEL_BASE = new URL("../PortableModels/onnx_models/gpen/", location.href).href;
+
+        const SAMPLE_IMAGES = [
+            'examples/1.png',
+            'examples/3.png',
+            'examples/4.png',
+            'examples/5.png',
+            'examples/762000_gray.png',
+            'examples/827000_gray.png',
+        ];
+
+        let modelReady = false;
+        let currentImageUrl = null;
+        // store raw resized pixels and the restored output for blend slider
+        let origPixels = null;  // RGBA Uint8ClampedArray at modelSize
+        let restoredPixels = null; // RGBA Uint8ClampedArray at modelSize
+        let lastModelSize = 512;
+
+        // DOM refs
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const restoreBtn = document.getElementById('restoreBtn');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progressFill');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressPercent = document.getElementById('progressPercent');
+        const modelStatus = document.getElementById('modelStatus');
+        const modelStatusText = document.getElementById('modelStatusText');
+        const taskSelect = document.getElementById('taskSelect');
+        const sampleGallery = document.getElementById('sampleGallery');
+        const origCanvas = document.getElementById('origCanvas');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const origCtx = origCanvas.getContext('2d');
+        const resultCtx = resultCanvas.getContext('2d');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const canvasActions = document.getElementById('canvasActions');
+        const blendSlider = document.getElementById('blendSlider');
+        const blendValueEl = document.getElementById('blendValue');
+        const resultInfo = document.getElementById('resultInfo');
+        const downloadOrigBtn = document.getElementById('downloadOrigBtn');
+        const downloadResultBtn = document.getElementById('downloadResultBtn');
+        const viewOrigBtn = document.getElementById('viewOrigBtn');
+        const viewResultBtn = document.getElementById('viewResultBtn');
+        const estimationSpinner = document.getElementById('estimationSpinner');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const modalClose = document.querySelector('.modal-close');
+
+        const TASK_MODELS = {
+            restoration: { file: 'gpen_bfr_512.onnx', size: 512 },
+            colorization: { file: 'gpen_colorization_1024.onnx', size: 1024 },
+        };
+
+        function getModelFile() { return TASK_MODELS[taskSelect.value].file; }
+        function getModelSize() { return TASK_MODELS[taskSelect.value].size; }
+
+        // Sample gallery
+        sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) => `
+            <div class="sample-item" data-index="${i}">
+                <img src="${url}" alt="Sample ${i + 1}">
+            </div>
+        `).join('');
+
+        taskSelect.addEventListener('change', () => loadModel());
+
+        async function loadModel() {
+            try {
+                modelReady = false;
+                restoreBtn.disabled = true;
+                progress.style.display = 'block';
+                progressLabel.textContent = 'Loading model...';
+                modelStatus.className = 'model-status loading';
+                modelStatusText.textContent = 'Loading model...';
+
+                await workerCall({ type: 'load', modelFile: getModelFile(), modelBaseUrl: MODEL_BASE });
+
+                modelReady = true;
+                modelStatus.className = 'model-status loaded';
+                modelStatusText.textContent = 'Model ready';
+                if (currentImageUrl) restoreBtn.disabled = false;
+                progress.style.display = 'none';
+            } catch (e) {
+                console.error('Model load error:', e);
+                modelStatus.className = 'model-status error';
+                modelStatusText.textContent = 'Failed to load model';
+                progress.style.display = 'none';
+            }
+        }
+        loadModel();
+
+        // Drag & drop
+        dropZone.addEventListener('click', () => imageInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleImageFile(file);
+        });
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleImageFile(file);
+        });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                currentImageUrl = e.target.result;
+                restoredPixels = null;
+                origPixels = null;
+                if (modelReady) restoreBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        sampleGallery.addEventListener('click', (e) => {
+            const item = e.target.closest('.sample-item');
+            if (item) {
+                const url = SAMPLE_IMAGES[item.dataset.index];
+                preview.src = url;
+                preview.style.display = 'block';
+                currentImageUrl = url;
+                restoredPixels = null;
+                origPixels = null;
+                if (modelReady) restoreBtn.disabled = false;
+            }
+        });
+
+        // Blend slider — blend restored over original
+        blendSlider.addEventListener('input', () => {
+            const alpha = parseFloat(blendSlider.value);
+            blendValueEl.textContent = alpha.toFixed(2);
+            if (origPixels && restoredPixels) renderBlended(alpha);
+        });
+
+        function renderBlended(alpha) {
+            const size = lastModelSize;
+            const blended = new Uint8ClampedArray(size * size * 4);
+            for (let i = 0; i < size * size * 4; i++) {
+                blended[i] = Math.round(origPixels[i] * (1 - alpha) + restoredPixels[i] * alpha);
+            }
+            const imageData = new ImageData(blended, size, size);
+            resultCtx.putImageData(imageData, 0, 0);
+        }
+
+        // Main restore action
+        restoreBtn.addEventListener('click', async () => {
+            if (!modelReady || !currentImageUrl) return;
+            restoreBtn.disabled = true;
+            status.textContent = 'Preparing image...';
+            canvasActions.classList.add('hidden');
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+                try {
+                    const modelSize = getModelSize();
+                    lastModelSize = modelSize;
+
+                    // draw original to orig canvas (at model resolution for fair comparison)
+                    origCanvas.width = modelSize;
+                    origCanvas.height = modelSize;
+                    origCtx.drawImage(img, 0, 0, modelSize, modelSize);
+                    origCanvas.style.display = 'block';
+                    canvasPlaceholder.style.display = 'none';
+                    estimationSpinner.style.display = 'block';
+
+                    // capture pixels to also store for blend
+                    const origData = origCtx.getImageData(0, 0, modelSize, modelSize);
+                    origPixels = new Uint8ClampedArray(origData.data);
+
+                    const t0 = performance.now();
+
+                    // send full image pixels to worker (worker does the resize)
+                    // use a temp canvas at full resolution to get RGBA pixels
+                    const tmpCanvas = document.createElement('canvas');
+                    tmpCanvas.width = img.naturalWidth;
+                    tmpCanvas.height = img.naturalHeight;
+                    const tmpCtx = tmpCanvas.getContext('2d');
+                    tmpCtx.drawImage(img, 0, 0);
+                    const fullPixels = tmpCtx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+
+                    const result = await workerCall({
+                        type: 'restore',
+                        pixels: fullPixels.data.buffer,
+                        w: img.naturalWidth,
+                        h: img.naturalHeight,
+                        modelSize,
+                    }, [fullPixels.data.buffer]);
+
+                    restoredPixels = new Uint8ClampedArray(result.outRGBA);
+                    const size = result.size;
+
+                    // draw restored canvas
+                    resultCanvas.width = size;
+                    resultCanvas.height = size;
+                    const alpha = parseFloat(blendSlider.value);
+                    renderBlended(alpha);
+                    resultCanvas.style.display = 'block';
+
+                    estimationSpinner.style.display = 'none';
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    status.textContent = `Done in ${elapsed}s`;
+                    resultInfo.textContent = `Output: ${size}×${size}px — use the Blend slider to compare`;
+                    canvasActions.classList.remove('hidden');
+                } catch (e) {
+                    status.textContent = 'Error: ' + e.message;
+                    console.error(e);
+                    estimationSpinner.style.display = 'none';
+                }
+                restoreBtn.disabled = false;
+            };
+            img.onerror = () => {
+                status.textContent = 'Failed to load image';
+                estimationSpinner.style.display = 'none';
+                restoreBtn.disabled = false;
+            };
+            img.src = currentImageUrl;
+        });
+
+        // Modal
+        function openModal(canvas, filename) {
+            const dataUrl = canvas.toDataURL('image/png');
+            modalImage.src = dataUrl;
+            modalImage.classList.remove('zoomed');
+            modalDownloadBtn.onclick = () => downloadImage(dataUrl, filename);
+            imageModal.classList.add('open');
+        }
+        function closeModal() { imageModal.classList.remove('open'); }
+
+        modalImage.addEventListener('click', () => modalImage.classList.toggle('zoomed'));
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalClose.addEventListener('click', closeModal);
+        imageModal.addEventListener('click', (e) => { if (e.target === imageModal) closeModal(); });
+
+        // Downloads
+        function downloadImage(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        downloadOrigBtn.addEventListener('click', () => {
+            const ts = new Date().toISOString().slice(0, 10);
+            downloadImage(origCanvas.toDataURL('image/png'), `gpen-original-${ts}.png`);
+        });
+        downloadResultBtn.addEventListener('click', () => {
+            const ts = new Date().toISOString().slice(0, 10);
+            downloadImage(resultCanvas.toDataURL('image/png'), `gpen-restored-${ts}.png`);
+        });
+        viewOrigBtn.addEventListener('click', () => openModal(origCanvas, 'original.png'));
+        viewResultBtn.addEventListener('click', () => openModal(resultCanvas, 'restored.png'));
+    </script>
+</body>
+
+</html>
