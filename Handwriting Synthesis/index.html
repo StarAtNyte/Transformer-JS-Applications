@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HandScript - Handwriting Synthesis</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 32px; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .grid { display: grid; gap: 24px; }
+        @media (min-width: 900px) {
+            .grid { grid-template-columns: 320px 1fr; }
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .icon { width: 20px; height: 20px; }
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .model-status.loaded { background: #f0fdf4; }
+        .model-status.loading { background: #fef3c7; }
+        .model-status.error { background: #fef2f2; }
+        .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            flex-shrink: 0;
+        }
+        .model-status.loading .dot {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        .model-status.error .dot { background: #ef4444; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        .form-group textarea,
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group textarea:focus,
+        .form-group input[type="text"]:focus {
+            border-color: #6366f1;
+        }
+        .char-count {
+            font-size: 0.75rem;
+            color: #999;
+            text-align: right;
+            margin-top: 4px;
+        }
+        .char-count.warn { color: #f59e0b; }
+        .char-count.over { color: #ef4444; }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .control-row label {
+            font-size: 0.85rem;
+            color: #555;
+            font-weight: 500;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #6366f1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .range-value {
+            font-size: 0.8rem;
+            color: #888;
+            min-width: 32px;
+            text-align: right;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 4px;
+        }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-danger { background: #ef4444; color: white; margin-top: 8px; }
+        .btn-danger:hover:not(:disabled) { background: #dc2626; }
+        .btn-danger:disabled { background: #ccc; cursor: not-allowed; }
+
+        .progress { margin-top: 12px; display: none; }
+        .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%;
+            transition: width 0.2s;
+        }
+        .progress-text {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status { margin-top: 10px; text-align: center; font-size: 0.85rem; color: #666; min-height: 1.2em; }
+
+        /* Canvas area */
+        .canvas-wrap {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 200px;
+            position: relative;
+        }
+        .canvas-placeholder {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 48px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .canvas-placeholder svg {
+            width: 64px; height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+        #outputCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        .canvas-scroll-wrap {
+            overflow-x: auto;
+            width: 100%;
+            display: none;
+        }
+
+        .canvas-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-secondary:disabled { background: #f1f5f9; color: #999; cursor: not-allowed; }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-group label {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        input[type="color"] {
+            width: 32px;
+            height: 32px;
+            padding: 2px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            background: white;
+        }
+
+        .spinner-wrap {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 10;
+            border-radius: 8px;
+        }
+        .spinner-wrap.visible { display: flex; }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+        }
+        .spinner-text { font-size: 0.9rem; color: #555; }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none !important; }
+
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+        footer a { color: #6366f1; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        .info-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #ede9fe;
+            color: #6d28d9;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>HandScript</h1>
+            <p class="subtitle">AI-powered handwriting synthesis in the browser</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status loading">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Loading model...</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                        Text Input
+                    </h2>
+
+                    <div class="form-group">
+                        <label for="textInput">Enter text to synthesize</label>
+                        <textarea id="textInput" rows="4" maxlength="150"
+                            placeholder="Type something here...&#10;&#10;Supported: letters, digits, punctuation"></textarea>
+                        <div class="char-count"><span id="charCount">0</span> / 150</div>
+                    </div>
+
+                    <div class="control-row">
+                        <label>Bias</label>
+                        <input type="range" id="biasSlider" min="0" max="2" step="0.05" value="0.75">
+                        <span class="range-value" id="biasValue">0.75</span>
+                    </div>
+                    <p style="font-size:0.75rem;color:#999;margin-bottom:12px;">Higher bias = cleaner, lower = more varied</p>
+
+                    <button id="generateBtn" class="btn btn-primary" disabled>Generate Handwriting</button>
+                    <button id="abortBtn" class="btn btn-danger hidden">Stop</button>
+
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Generating...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                    <div id="status" class="status"></div>
+                </div>
+
+                <div class="card" style="margin-top:16px;">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.485 8.485M7 17h.01"></path>
+                        </svg>
+                        Quick Examples
+                    </h2>
+                    <div id="exampleList" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2 style="margin-bottom:16px;">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Output
+                        <span class="info-pill" style="margin-left:auto;font-size:0.72rem;">Epoch 52 model</span>
+                    </h2>
+
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <label>Background:</label>
+                            <input type="color" id="bgColor" value="#ffffff">
+                        </div>
+                        <div class="control-group">
+                            <label>Ink color:</label>
+                            <input type="color" id="inkColor" value="#1a1a2e">
+                        </div>
+                        <div class="control-group">
+                            <label>Line width:</label>
+                            <input type="range" id="lineWidthSlider" min="1" max="8" step="0.5" value="3" style="width:80px;">
+                            <span style="font-size:0.8rem;color:#888;min-width:20px;" id="lineWidthValue">3</span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrap" id="canvasWrap">
+                        <div class="spinner-wrap" id="spinnerWrap">
+                            <div class="spinner"></div>
+                            <span class="spinner-text" id="spinnerText">Generating handwriting...</span>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                            </svg>
+                            <p>Enter text and click "Generate Handwriting"</p>
+                        </div>
+                        <div class="canvas-scroll-wrap" id="canvasScrollWrap">
+                            <canvas id="outputCanvas"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="canvasActions" class="canvas-actions hidden">
+                        <button id="downloadBtn" class="btn-secondary">Download PNG</button>
+                        <button id="clearBtn" class="btn-secondary">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://github.com/X-rayLaser/pytorch-handwriting-synthesis-toolkit" target="_blank">PyTorch Handwriting Synthesis</a>
+                &amp;
+                <a href="https://onnxruntime.ai/docs/get-started/with-javascript/web.html" target="_blank">ONNX Runtime Web</a>
+            </p>
+        </footer>
+    </div>
+
+    <script type="module">
+        // ─── Worker code (inlined) ────────────────────────────────────────────
+        const workerCode = `
+"use strict";
+
+// Tokenizer: matches Python Tokenizer class charset
+const CHARSET = ' !"#%\\'()+,-.\/0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZ[abcdefghijklmnopqrstuvwxyz';
+const CHARSET_SIZE = CHARSET.length + 1; // +1 for unknown token (index 0)
+
+const charToCode = new Map();
+for (let i = 0; i < CHARSET.length; i++) {
+    charToCode.set(CHARSET[i], i + 1);
+}
+
+const MU  = [8.217162132263184, 0.1212363988161087, 0.0];
+const STD = [42.34926223754883, 37.07347869873047,  1.0];
+const AVG_STEPS_PER_LETTER = 35;
+const MODEL_PATH = '${new URL('../PortableModels/onnx_models/HandwritingSynthesis/synthesis_network_52.onnx', location.href).href}';
+
+let session = null;
+let aborted = false;
+
+// ─── ORT loader ───────────────────────────────────────────────────────────
+async function loadOrt() {
+    const { default: ort } = await import('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/+esm');
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+    return ort;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+function tokenize(text) {
+    const tokens = [];
+    for (const ch of text) {
+        tokens.push(charToCode.has(ch) ? charToCode.get(ch) : 0);
+    }
+    return tokens;
+}
+
+function prepareText(ort, text) {
+    const tokens = tokenize(text);
+    const arr = new Float32Array(tokens.length * CHARSET_SIZE);
+    for (let i = 0; i < tokens.length; i++) {
+        arr[i * CHARSET_SIZE + tokens[i]] = 1.0;
+    }
+    return new ort.Tensor('float32', arr, [1, tokens.length, CHARSET_SIZE]);
+}
+
+function zeros(ort, shape) {
+    const size = shape.reduce((a, b) => a * b, 1);
+    return new ort.Tensor('float32', new Float32Array(size), shape);
+}
+
+function argmax(arr) {
+    let best = 0;
+    for (let i = 1; i < arr.length; i++) {
+        if (arr[i] > arr[best]) best = i;
+    }
+    return best;
+}
+
+function isEndOfString(phi, stringLength, isEos) {
+    const lastPhi = phi[stringLength - 1];
+    return lastPhi > 0.8 || (argmax(phi) === stringLength - 1 && isEos);
+}
+
+// Bivariate normal sampling using Box-Muller
+function sampleBivariateNormal(mu1, mu2, sd1, sd2, ro) {
+    // Box-Muller for two correlated normals
+    let u, v, s;
+    do {
+        u = Math.random() * 2 - 1;
+        v = Math.random() * 2 - 1;
+        s = u * u + v * v;
+    } while (s >= 1 || s === 0);
+    const factor = Math.sqrt(-2 * Math.log(s) / s);
+    const z0 = u * factor;
+    const z1 = v * factor;
+    const x = mu1 + sd1 * z0;
+    const y = mu2 + sd2 * (ro * z0 + Math.sqrt(1 - ro * ro) * z1);
+    return [x, y];
+}
+
+function sampleComponent(pi) {
+    // Multinomial sample
+    let r = Math.random();
+    for (let i = 0; i < pi.length; i++) {
+        r -= pi[i];
+        if (r <= 0) return i;
+    }
+    return pi.length - 1;
+}
+
+function sampleNextPoint(pi, mu, sd, ro, eos) {
+    const K = pi.length;
+    const k = sampleComponent(pi);
+    const mu1 = mu[k], mu2 = mu[K + k];
+    const sd1 = sd[k], sd2 = sd[K + k];
+    const [dx, dy] = sampleBivariateNormal(mu1, mu2, sd1, sd2, ro[k]);
+    const eosVal = eos[0] > 0.5 ? 1.0 : 0.0;
+    return new Float32Array([dx, dy, eosVal]);
+}
+
+// ─── Main generation ──────────────────────────────────────────────────────
+async function generate(ort, text, biasValue) {
+    if (!session) {
+        session = await ort.InferenceSession.create(MODEL_PATH, {
+            executionProviders: ['wasm']
+        });
+    }
+
+    aborted = false;
+    const paddedText = text + ' ';
+    const steps = AVG_STEPS_PER_LETTER * paddedText.length;
+    const c = prepareText(ort, paddedText);
+    const bias = new ort.Tensor('float32', new Float32Array([biasValue]), [1]);
+
+    // Initial states
+    let feeds = {
+        x:     zeros(ort, [1, 1, 3]),
+        c:     c,
+        'w.1': zeros(ort, [1, 1, CHARSET_SIZE]),
+        'k.1': zeros(ort, [1, 10]),
+        'h1.1': zeros(ort, [1, 400]),
+        'c1.1': zeros(ort, [1, 400]),
+        'h2.1': zeros(ort, [1, 400]),
+        'c2.1': zeros(ort, [1, 400]),
+        'h3.1': zeros(ort, [1, 400]),
+        'c3.1': zeros(ort, [1, 400]),
+        bias: bias,
+    };
+
+    let prevX = 0, prevY = 0;
+    const points = [];
+
+    for (let i = 0; i < steps; i++) {
+        if (aborted) { self.postMessage({ type: 'aborted' }); return; }
+
+        const results = await session.run(feeds);
+        const pi  = results.pi.data;
+        const mu  = results.mu.data;
+        const sdR = results.sd.data;
+        const ro  = results.ro.data;
+        const eos = results.eos.data;
+        const phi = results.phi.data;
+
+        const xTemp = sampleNextPoint(pi, mu, sdR, ro, eos);
+
+        const xDen = xTemp[0] * STD[0] + MU[0];
+        const yDen = xTemp[1] * STD[1] + MU[1];
+        prevX += xDen;
+        prevY += yDen;
+
+        const seqLen = c.dims[1];
+        if (seqLen >= 6 && isEndOfString(phi, seqLen, xTemp[2])) {
+            xTemp[2] = 1.0;
+            points.push({ x: Math.round(prevX), y: Math.round(prevY), eos: 1 });
+            break;
+        }
+
+        const pt = { x: Math.round(prevX), y: Math.round(prevY), eos: xTemp[2] };
+        points.push(pt);
+
+        const pct = Math.round(i / steps * 100);
+        self.postMessage({ type: 'progress', percent: pct, point: pt });
+
+        // Build next feeds
+        feeds = {
+            x:     new ort.Tensor('float32', xTemp, [1, 1, 3]),
+            c:     c,
+            'w.1': new ort.Tensor('float32', results.w.data, [1, 1, CHARSET_SIZE]),
+            'k.1': new ort.Tensor('float32', results.k.data, [1, 10]),
+            'h1.1': new ort.Tensor('float32', results.h1.data, [1, 400]),
+            'c1.1': new ort.Tensor('float32', results.c1.data, [1, 400]),
+            'h2.1': new ort.Tensor('float32', results.h2.data, [1, 400]),
+            'c2.1': new ort.Tensor('float32', results.c2.data, [1, 400]),
+            'h3.1': new ort.Tensor('float32', results.h3.data, [1, 400]),
+            'c3.1': new ort.Tensor('float32', results.c3.data, [1, 400]),
+            bias:   bias,
+        };
+    }
+
+    self.postMessage({ type: 'done', points });
+}
+
+// ─── Message handler ──────────────────────────────────────────────────────
+let ort = null;
+const ready = loadOrt().then(o => { ort = o; });
+
+self.onmessage = async (e) => {
+    await ready;
+    const { type } = e.data;
+
+    if (type === 'generate') {
+        try {
+            await generate(ort, e.data.text, e.data.bias);
+        } catch (err) {
+            self.postMessage({ type: 'error', message: err.message });
+        }
+    } else if (type === 'abort') {
+        aborted = true;
+    }
+};
+`;
+
+        // ─── Main page logic ──────────────────────────────────────────────────────
+        const EXAMPLES = [
+            'Hello, World!',
+            'The quick brown fox',
+            'In a galaxy far away',
+            'To be or not to be',
+            'Happy birthday',
+        ];
+
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })), { type: 'module' });
+
+        // DOM refs
+        const textInput       = document.getElementById('textInput');
+        const charCount       = document.getElementById('charCount');
+        const biasSlider      = document.getElementById('biasSlider');
+        const biasValueEl     = document.getElementById('biasValue');
+        const generateBtn     = document.getElementById('generateBtn');
+        const abortBtn        = document.getElementById('abortBtn');
+        const progressEl      = document.getElementById('progress');
+        const progressFill    = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const statusEl        = document.getElementById('status');
+        const modelStatus     = document.getElementById('modelStatus');
+        const modelStatusText = document.getElementById('modelStatusText');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const canvasScrollWrap  = document.getElementById('canvasScrollWrap');
+        const outputCanvas    = document.getElementById('outputCanvas');
+        const canvasActions   = document.getElementById('canvasActions');
+        const downloadBtn     = document.getElementById('downloadBtn');
+        const clearBtn        = document.getElementById('clearBtn');
+        const bgColorInput    = document.getElementById('bgColor');
+        const inkColorInput   = document.getElementById('inkColor');
+        const lineWidthSlider = document.getElementById('lineWidthSlider');
+        const lineWidthValue  = document.getElementById('lineWidthValue');
+        const spinnerWrap     = document.getElementById('spinnerWrap');
+        const spinnerText     = document.getElementById('spinnerText');
+        const exampleList     = document.getElementById('exampleList');
+
+        let modelReady = false;
+        let isGenerating = false;
+        let aborted = false;
+        let allPoints = [];      // accumulated absolute points
+        let wasEos = false;
+        let ctx = null;
+
+        // Canvas internal dimensions (logical pixels for the stroke data)
+        const CANVAS_H = 280;
+
+        // ─── Model loading (ORT loads lazily in worker on first use) ──────────
+        // We mark model ready once we know ORT CDN loaded — do a ping generate
+        // but actually we just optimistically enable after first worker contact.
+        // Instead, listen for a ready or use a load message.
+        // We'll trigger a minimal "warmup" by loading ORT module:
+        (async function checkModelReady() {
+            try {
+                // Just attempt to load ORT to verify CDN accessibility
+                await import('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/+esm');
+                modelStatus.className = 'model-status loaded';
+                modelStatusText.textContent = 'Model ready (loads on first use)';
+                modelReady = true;
+                generateBtn.disabled = textInput.value.trim() === '';
+            } catch (e) {
+                modelStatus.className = 'model-status error';
+                modelStatusText.textContent = 'Failed to load runtime';
+            }
+        })();
+
+        // ─── Example buttons ──────────────────────────────────────────────────
+        EXAMPLES.forEach(ex => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-secondary';
+            btn.style.textAlign = 'left';
+            btn.style.padding = '8px 12px';
+            btn.textContent = ex;
+            btn.addEventListener('click', () => {
+                textInput.value = ex;
+                updateCharCount();
+                if (modelReady) generateBtn.disabled = false;
+            });
+            exampleList.appendChild(btn);
+        });
+
+        // ─── Controls ─────────────────────────────────────────────────────────
+        function updateCharCount() {
+            const n = textInput.value.length;
+            charCount.textContent = n;
+            charCount.parentElement.className = 'char-count' + (n > 130 ? (n >= 150 ? ' over' : ' warn') : '');
+            if (modelReady) generateBtn.disabled = textInput.value.trim() === '' || isGenerating;
+        }
+
+        textInput.addEventListener('input', updateCharCount);
+
+        biasSlider.addEventListener('input', () => {
+            biasValueEl.textContent = parseFloat(biasSlider.value).toFixed(2);
+        });
+
+        lineWidthSlider.addEventListener('input', () => {
+            lineWidthValue.textContent = lineWidthSlider.value;
+            if (ctx) ctx.lineWidth = parseFloat(lineWidthSlider.value);
+        });
+
+        bgColorInput.addEventListener('input', () => {
+            if (allPoints.length > 0) redrawCanvas();
+        });
+        inkColorInput.addEventListener('input', () => {
+            if (allPoints.length > 0) redrawCanvas();
+        });
+
+        // ─── Canvas drawing ───────────────────────────────────────────────────
+        function initCanvas() {
+            canvasPlaceholder.style.display = 'none';
+            canvasScrollWrap.style.display = 'block';
+
+            // Determine output canvas width based on wrapping element
+            const wrapWidth = canvasScrollWrap.parentElement.clientWidth - 2;
+            outputCanvas.width = Math.max(wrapWidth, 800);
+            outputCanvas.height = CANVAS_H;
+            ctx = outputCanvas.getContext('2d');
+            fillBackground();
+            ctx.lineWidth = parseFloat(lineWidthSlider.value);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = inkColorInput.value;
+            ctx.beginPath();
+            wasEos = false;
+        }
+
+        function fillBackground() {
+            ctx.fillStyle = bgColorInput.value;
+            ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+        }
+
+        function redrawCanvas() {
+            if (!ctx) return;
+            fillBackground();
+            ctx.lineWidth = parseFloat(lineWidthSlider.value);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = inkColorInput.value;
+            ctx.beginPath();
+
+            // Recompute bounds and draw
+            const pts = normalizePoints(allPoints);
+            let prevEos = true;
+            for (const p of pts) {
+                if (prevEos) {
+                    ctx.moveTo(p.x, p.y);
+                } else {
+                    ctx.lineTo(p.x, p.y);
+                }
+                prevEos = p.eos === 1;
+            }
+            ctx.stroke();
+        }
+
+        function normalizePoints(points) {
+            if (points.length === 0) return [];
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const p of points) {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            }
+            const padX = 20, padY = 20;
+            const canvasW = outputCanvas.width;
+            const canvasH = outputCanvas.height;
+            const dataW = maxX - minX || 1;
+            const dataH = maxY - minY || 1;
+            const scaleX = (canvasW - padX * 2) / dataW;
+            const scaleY = (canvasH - padY * 2) / dataH;
+            const scale = Math.min(scaleX, scaleY, 1.5); // cap scale to avoid blowup on short text
+
+            return points.map(p => ({
+                x: (p.x - minX) * scale + padX,
+                y: (p.y - minY) * scale + padY,
+                eos: p.eos
+            }));
+        }
+
+        function drawIncrementalPoint(pt) {
+            if (!ctx) return;
+            ctx.strokeStyle = inkColorInput.value;
+            // We can't incrementally draw normalized (we need all points for bounds)
+            // Just redraw periodically — efficient enough for the sizes involved.
+        }
+
+        // ─── Generation ───────────────────────────────────────────────────────
+        generateBtn.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (!text || !modelReady || isGenerating) return;
+
+            isGenerating = true;
+            aborted = false;
+            allPoints = [];
+            wasEos = false;
+
+            generateBtn.disabled = true;
+            abortBtn.classList.remove('hidden');
+            progressEl.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            canvasActions.classList.add('hidden');
+            statusEl.textContent = '';
+            spinnerWrap.classList.add('visible');
+            spinnerText.textContent = 'Generating handwriting…';
+
+            initCanvas();
+
+            const t0 = performance.now();
+            worker.postMessage({ type: 'generate', text, bias: parseFloat(biasSlider.value) });
+        });
+
+        abortBtn.addEventListener('click', () => {
+            worker.postMessage({ type: 'abort' });
+            abortBtn.disabled = true;
+        });
+
+        worker.onmessage = (e) => {
+            const { type } = e.data;
+
+            if (type === 'progress') {
+                const pct = e.data.percent;
+                progressFill.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+                allPoints.push(e.data.point);
+                // Redraw every 20 points for live preview
+                if (allPoints.length % 20 === 0) redrawCanvas();
+            } else if (type === 'done') {
+                allPoints = e.data.points;
+                redrawCanvas();
+                finishGeneration(true);
+            } else if (type === 'aborted') {
+                if (allPoints.length > 0) redrawCanvas();
+                finishGeneration(false);
+                statusEl.textContent = 'Generation stopped.';
+            } else if (type === 'error') {
+                finishGeneration(false);
+                statusEl.textContent = 'Error: ' + e.data.message;
+                console.error(e.data.message);
+            }
+        };
+
+        worker.onerror = (e) => {
+            finishGeneration(false);
+            statusEl.textContent = 'Worker error: ' + e.message;
+        };
+
+        function finishGeneration(success) {
+            isGenerating = false;
+            spinnerWrap.classList.remove('visible');
+            progressEl.style.display = 'none';
+            generateBtn.disabled = textInput.value.trim() === '';
+            abortBtn.classList.add('hidden');
+            abortBtn.disabled = false;
+
+            if (success && allPoints.length > 0) {
+                canvasActions.classList.remove('hidden');
+                statusEl.textContent = `Done — ${allPoints.length} points generated`;
+            }
+        }
+
+        // ─── Download / clear ─────────────────────────────────────────────────
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            const ts = new Date().toISOString().slice(0, 10);
+            link.download = `handwriting-${ts}.png`;
+            link.href = outputCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            allPoints = [];
+            canvasPlaceholder.style.display = '';
+            canvasScrollWrap.style.display = 'none';
+            canvasActions.classList.add('hidden');
+            statusEl.textContent = '';
+            ctx = null;
+        });
+    </script>
+</body>
+</html>
