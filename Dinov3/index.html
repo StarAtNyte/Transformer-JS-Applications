@@ -880,6 +880,7 @@
                 lastHoverData = null;
 
                 try {
+                    const t0 = performance.now();
                     const imageData = ctx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
                     const result = await workerCall({
                         type: "extract",
@@ -911,7 +912,8 @@
                         imageCanvas.height,
                     );
 
-                    status.textContent = `Analyzed ${numPatches} patches (${imageCanvas.width}×${imageCanvas.height}). Hover to explore features.`;
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    status.textContent = `Done in ${elapsed}s — ${numPatches} patches (${imageCanvas.width}×${imageCanvas.height}). Hover to explore.`;
                 } catch (error) {
                     status.textContent = "Error: " + error.message;
                     console.error("Processing error:", error);
