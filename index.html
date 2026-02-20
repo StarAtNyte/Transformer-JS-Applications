@@ -50,9 +50,10 @@
         .demo-link {
             display: flex;
             flex-direction: column;
+            position: relative;
             background: white;
             border-radius: 10px;
-            padding: 16px 16px 12px;
+            padding: 28px 16px 12px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
             text-decoration: none;
             color: inherit;
@@ -78,12 +79,34 @@
         }
 
         .tag {
-            margin-top: 12px;
-            font-size: 0.7rem;
+            margin-top: auto;
+            padding-top: 10px;
+            font-size: 0.62rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
             color: #6366f1;
+        }
+
+        .runtime-tag {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 0.58rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+        }
+
+        .runtime-tag.tjs {
+            background: #f0ebe4;
+            color: #78716c;
+        }
+
+        .runtime-tag.ort {
+            background: #ede9fe;
+            color: #5b21b6;
         }
 
         .section-heading {
@@ -149,69 +172,112 @@
 
         <div class="grid">
             <a class="demo-link" href="Dinov3/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
                 <strong>Feature Explorer</strong>
                 <span class="desc">Patch similarity heatmap for a single image</span>
                 <span class="tag">DINOv3</span>
             </a>
             <a class="demo-link" href="Dinov3/correspondence.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
                 <strong>Cross-Image Correspondence</strong>
                 <span class="desc">Find matching patches between two images</span>
                 <span class="tag">DINOv3</span>
             </a>
             <a class="demo-link" href="DepthAnything/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Depth Estimation</strong>
                 <span class="desc">Upload an image, get a colorized depth map</span>
                 <span class="tag">Depth Anything v3</span>
             </a>
             <a class="demo-link" href="VectorLineArt/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Neural Line Art Vectorization</strong>
                 <span class="desc">Convert raster line-art directly to clean vector SVG</span>
                 <span class="tag">Line Art</span>
             </a>
             <a class="demo-link" href="DPR/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Portrait Relighting</strong>
                 <span class="desc">Change portrait lighting direction from a single image</span>
                 <span class="tag">Relighting</span>
             </a>
             <a class="demo-link" href="Colorify/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Colorify</strong>
                 <span class="desc">Colorize black &amp; white photos and video</span>
                 <span class="tag">Colorization</span>
             </a>
             <a class="demo-link" href="FaceParsing/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>FaceParser</strong>
                 <span class="desc">Semantic face segmentation powered by SegFormer</span>
                 <span class="tag">Face Parsing</span>
             </a>
             <a class="demo-link" href="ObjectDetection/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>ObjectDetect</strong>
                 <span class="desc">Real-time object detection in the browser</span>
                 <span class="tag">Object Detection</span>
             </a>
             <a class="demo-link" href="VL/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
                 <strong>Vision Language</strong>
                 <span class="desc">Image understanding powered by Transformers.js</span>
                 <span class="tag">Vision Language</span>
             </a>
             <a class="demo-link" href="FastVLM/dist/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
                 <strong>FastVLM</strong>
                 <span class="desc">Fast vision-language model with WebGPU acceleration</span>
                 <span class="tag">Vision Language</span>
             </a>
             <a class="demo-link" href="GPEN/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Revive</strong>
                 <span class="desc">Face restoration &amp; colorization for degraded inputs</span>
                 <span class="tag">Face Restoration</span>
             </a>
             <a class="demo-link" href="LineArt/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>InkTrace</strong>
                 <span class="desc">Convert any photo into clean contour line art</span>
                 <span class="tag">Line Art</span>
             </a>
             <a class="demo-link" href="Handwriting Synthesis/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Handwriting Synthesis</strong>
                 <span class="desc">Generate realistic cursive handwriting strokes from text input</span>
                 <span class="tag">Handwriting</span>
+            </a>
+            <a class="demo-link" href="MODNet/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
+                <strong>PortraitCut</strong>
+                <span class="desc">Lightweight real-time portrait background removal &amp; matting</span>
+                <span class="tag">Background Removal</span>
+            </a>
+            <a class="demo-link" href="ImageCaption/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
+                <strong>PixelCaption</strong>
+                <span class="desc">Auto-generate natural language descriptions of any image with BLIP</span>
+                <span class="tag">Image Captioning</span>
+            </a>
+            <a class="demo-link" href="ZeroShotCLIP/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
+                <strong>CLIPMatch</strong>
+                <span class="desc">Classify images using your own custom text labels — no fixed classes</span>
+                <span class="tag">Zero-Shot CLIP</span>
+            </a>
+            <a class="demo-link" href="OWLDetect/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
+                <strong>OWLSearch</strong>
+                <span class="desc">Find any object by typing what to look for — open-vocabulary detection</span>
+                <span class="tag">Text-Guided Detection</span>
+            </a>
+            <a class="demo-link" href="SuperRes/index.html">
+                <span class="runtime-tag tjs">Transformers.js</span>
+                <strong>PixelBoost</strong>
+                <span class="desc">AI-powered 2× image upscaling with Swin2SR super-resolution</span>
+                <span class="tag">Super Resolution</span>
             </a>
             <!-- <a class="demo-link" href="Mosaic/mosaic.html">
                 <strong>Image Mosaic Generator</strong>
@@ -238,6 +304,7 @@
                 <span class="tag">Relighting</span>
             </div>
             <a class="demo-link" href="UHDM/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Image Demoiréing</strong>
                 <span class="desc">Remove moiré patterns from screen photos up to 4K</span>
                 <span class="tag">Restoration</span>
@@ -254,6 +321,7 @@
             </div>
 
             <a class="demo-link" href="NeuralPainting/index.html">
+                <span class="runtime-tag ort">ONNX Runtime</span>
                 <strong>Neural Painter</strong>
                 <span class="desc">Decompose photos into editable paintbrush stroke parameters</span>
                 <span class="tag">Generative Art</span>
@@ -296,11 +364,6 @@
             <div class="soon-card">
                 <strong>BiRefNet</strong>
                 <span class="desc">High-resolution background removal &amp; matting</span>
-                <span class="tag">Segmentation</span>
-            </div>
-            <div class="soon-card">
-                <strong>MODNet</strong>
-                <span class="desc">Lightweight real-time portrait matting</span>
                 <span class="tag">Segmentation</span>
             </div>
             <div class="soon-card">

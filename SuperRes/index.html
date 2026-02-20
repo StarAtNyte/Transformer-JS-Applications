@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PixelBoost - AI Image Super-Resolution</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 1rem; }
+    .grid { display: grid; gap: 24px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 320px 1fr; } }
+    .card {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .icon { width: 20px; height: 20px; }
+    .dropzone {
+      border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+    .dropzone p { color: #666; font-size: 0.9rem; }
+    .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+    #preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin: 12px auto 0; display: none; }
+    .btn {
+      width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-top: 12px;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary {
+      background: #e2e8f0; color: #333; padding: 8px 16px; border: none;
+      border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; width: auto; margin-top: 0;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+    .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+    .progress { margin-top: 12px; display: none; }
+    .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      width: 0%; transition: width 0.3s;
+    }
+    .progress-text {
+      font-size: 0.75rem; color: #999; margin-top: 4px;
+      display: flex; justify-content: space-between;
+    }
+    .model-status {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      border-radius: 8px; margin-bottom: 16px;
+    }
+    .model-status.loaded { background: #f0fdf4; }
+    .model-status.loading { background: #fef3c7; }
+    .model-status.error { background: #fef2f2; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+    .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+    .model-status.error .dot { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .sample-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.2s; border: 2px solid transparent; }
+    .sample-item:hover { transform: scale(1.05); border-color: #6366f1; }
+    .sample-item.active { border-color: #6366f1; box-shadow: 0 0 0 2px #c7d2fe; }
+    .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+    .scale-badge {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 10px; background: #f1f5f9; border-radius: 8px; margin-top: 12px;
+      font-size: 0.9rem; font-weight: 600; color: #4338ca;
+    }
+    .scale-badge .arr { color: #818cf8; font-size: 1.2rem; }
+    .info-note {
+      font-size: 0.78rem; color: #666; background: #f9fafb; border-radius: 6px;
+      padding: 8px 10px; line-height: 1.5; border-left: 3px solid #c7d2fe; margin-top: 12px;
+    }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box { background: #f8faff; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #e0e7ff; }
+    .stat-val { font-size: 1rem; font-weight: 700; color: #4338ca; }
+    .stat-lbl { font-size: 0.72rem; color: #6b7280; margin-top: 2px; }
+    .canvas-pair {
+      display: flex; gap: 12px; align-items: flex-start; justify-content: center;
+      flex-wrap: wrap; width: 100%;
+    }
+    .canvas-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+    .canvas-label { font-size: 0.75rem; color: #999; text-align: center; margin-top: 6px; }
+    .canvas-wrap {
+      background: repeating-conic-gradient(#e9ecef 0% 25%, #f8f9fa 0% 50%) 0 0 / 14px 14px;
+      border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+      min-height: 280px; display: flex; align-items: center; justify-content: center;
+      padding: 8px; flex-direction: column;
+    }
+    canvas { display: none; border-radius: 6px; max-width: 100%; height: auto; image-rendering: pixelated; }
+    .canvas-placeholder { color: #aaa; font-size: 0.85rem; text-align: center; padding: 24px; }
+    .canvas-placeholder svg { width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.5; }
+    .spinning-overlay {
+      position: absolute; inset: 0; background: rgba(255,255,255,0.85);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; z-index: 10; border-radius: 8px;
+    }
+    .spinning-overlay.active { display: flex; }
+    .spinner {
+      border: 3px solid #e0e7ff; border-top-color: #6366f1;
+      border-radius: 50%; width: 32px; height: 32px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .canvas-actions { display: flex; gap: 12px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+    .hidden { display: none !important; }
+    footer { text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem; }
+    footer a { color: #6366f1; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>PixelBoost</h1>
+    <p class="subtitle">AI-powered 2× image upscaling with Swin2SR — runs entirely in your browser</p>
+  </header>
+
+  <div class="grid">
+    <div class="sidebar">
+      <div class="card">
+        <div id="modelStatus" class="model-status loading">
+          <span class="dot"></span>
+          <span id="modelStatusText">Loading model...</span>
+        </div>
+
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          Upload Image
+        </h2>
+        <div id="dropZone" class="dropzone">
+          <input type="file" id="imageInput" accept="image/*" hidden />
+          <p>Drop image here or click</p>
+          <p class="hint">PNG, JPG, WebP</p>
+          <img id="preview" alt="Preview" crossorigin="anonymous" />
+        </div>
+
+        <div class="scale-badge">
+          <span id="inputDims">—</span>
+          <span class="arr">→</span>
+          <span id="outputDims">—</span>
+        </div>
+
+        <button id="upscaleBtn" class="btn btn-primary" disabled>⬆ Upscale 2×</button>
+
+        <div class="info-note">Best on <strong>low-res or compressed images</strong>. Input capped at 256×256 px before processing.</div>
+
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress">
+          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          <div class="progress-text">
+            <span id="progressLabel">Loading...</span><span id="progressPercent">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          Sample Images (low-res)
+        </h2>
+        <div id="sampleGallery" class="sample-grid"></div>
+      </div>
+
+      <div id="statsCard" class="card hidden" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          Upscale Stats
+        </h2>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val" id="statInput">—</div><div class="stat-lbl">Input Size</div></div>
+          <div class="stat-box"><div class="stat-val" id="statOutput">—</div><div class="stat-lbl">Output Size</div></div>
+          <div class="stat-box"><div class="stat-val" id="statTime">—</div><div class="stat-lbl">Process Time</div></div>
+          <div class="stat-box"><div class="stat-val">~4×</div><div class="stat-lbl">Pixel Increase</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          Original vs AI Upscaled
+        </h2>
+
+        <div class="canvas-pair">
+          <div class="canvas-col">
+            <div class="canvas-wrap">
+              <div id="origPlaceholder" class="canvas-placeholder">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                <p>Upload an image</p>
+              </div>
+              <canvas id="origCanvas"></canvas>
+            </div>
+            <div class="canvas-label" id="origLabel">Original</div>
+          </div>
+
+          <div class="canvas-col">
+            <div class="canvas-wrap" style="position:relative;">
+              <div id="upPlaceholder" class="canvas-placeholder">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                </svg>
+                <p>Upscaled result</p>
+              </div>
+              <canvas id="upCanvas"></canvas>
+              <div class="spinning-overlay" id="spinOverlay">
+                <div class="spinner"></div>
+                <span style="font-size:0.85rem;color:#4338ca;font-weight:500;">Running Swin2SR…</span>
+              </div>
+            </div>
+            <div class="canvas-label" id="upLabel">AI Upscaled</div>
+          </div>
+        </div>
+
+        <div id="canvasActions" class="canvas-actions hidden">
+          <button class="btn-secondary" id="downloadBtn">Download Upscaled PNG</button>
+          <button class="btn-secondary" id="clearBtn">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      Powered by
+      <a href="https://github.com/microsoft/Swin2SR" target="_blank">Swin2SR</a>
+      &amp;
+      <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>
+    </p>
+  </footer>
+</div>
+
+<script type="module">
+  const MODEL_ID  = 'Xenova/swin2SR-classical-sr-x2-64';
+  const MAX_INPUT = 256;
+
+  const SAMPLES = [
+    { url: 'https://images.unsplash.com/photo-1518791841217-8f162f1912da?w=200&h=200&fit=crop', label: 'Cat' },
+    { url: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=200&h=200&fit=crop', label: 'Dog' },
+    { url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&h=200&fit=crop', label: 'Mountain' },
+    { url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=200&h=200&fit=crop', label: 'City' },
+    { url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=200&h=200&fit=crop', label: 'Forest' },
+    { url: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=200&h=200&fit=crop', label: 'Dogs' },
+  ];
+
+  let pipe = null, currentImgDataURL = null, currentOrigW = 0, currentOrigH = 0;
+
+  const modelStatus    = document.getElementById('modelStatus');
+  const modelStatusTxt = document.getElementById('modelStatusText');
+  const dropZone       = document.getElementById('dropZone');
+  const imageInput     = document.getElementById('imageInput');
+  const preview        = document.getElementById('preview');
+  const upscaleBtn     = document.getElementById('upscaleBtn');
+  const statusEl       = document.getElementById('status');
+  const progress       = document.getElementById('progress');
+  const progressFill   = document.getElementById('progressFill');
+  const progressLabel  = document.getElementById('progressLabel');
+  const progressPct    = document.getElementById('progressPercent');
+  const sampleGallery  = document.getElementById('sampleGallery');
+  const inputDims      = document.getElementById('inputDims');
+  const outputDims     = document.getElementById('outputDims');
+  const origCanvas     = document.getElementById('origCanvas');
+  const upCanvas       = document.getElementById('upCanvas');
+  const origPlaceholder = document.getElementById('origPlaceholder');
+  const upPlaceholder   = document.getElementById('upPlaceholder');
+  const origLabel      = document.getElementById('origLabel');
+  const upLabel        = document.getElementById('upLabel');
+  const spinOverlay    = document.getElementById('spinOverlay');
+  const statsCard      = document.getElementById('statsCard');
+  const canvasActions  = document.getElementById('canvasActions');
+  const downloadBtn    = document.getElementById('downloadBtn');
+  const clearBtn       = document.getElementById('clearBtn');
+
+  function setModelStatus(state, text) { modelStatus.className = 'model-status ' + state; modelStatusTxt.textContent = text; }
+
+  async function loadModel() {
+    setModelStatus('loading', 'Loading model...');
+    progress.style.display = 'block'; progressLabel.textContent = 'Downloading Swin2SR...';
+    try {
+      (function() {
+        function openModelDB() {
+          return new Promise((resolve, reject) => {
+            const req = indexedDB.open('onnx-model-cache', 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = e => reject(e.target.error);
+          });
+        }
+        async function getFromDB(url) {
+          try {
+            const db = await openModelDB();
+            return new Promise(resolve => {
+              const req = db.transaction('models', 'readonly').objectStore('models').get(url);
+              req.onsuccess = e => resolve(e.target.result || null);
+              req.onerror = () => resolve(null);
+            });
+          } catch(e) { return null; }
+        }
+        function saveToDB(url, buffer) {
+          openModelDB().then(db => {
+            const tx = db.transaction('models', 'readwrite');
+            tx.objectStore('models').put(buffer, url);
+          }).catch(() => {});
+        }
+        const _fetch = globalThis.fetch.bind(globalThis);
+        globalThis.fetch = async function(input, init) {
+          const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+          const isHF = url.indexOf('huggingface.co') !== -1;
+          const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+          if (isHF && isGet) {
+            const cached = await getFromDB(url);
+            if (cached) {
+              return new Response(cached, {
+                status: 200,
+                headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '' + cached.byteLength }
+              });
+            }
+            const response = await _fetch(input, init);
+            if (response.ok) {
+              const buffer = await response.clone().arrayBuffer();
+              saveToDB(url, buffer);
+            }
+            return response;
+          }
+          return _fetch(input, init);
+        };
+      })();
+      const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+      if (T.env) T.env.allowLocalModels = false;
+      pipe = await T.pipeline('image-to-image', MODEL_ID, {
+        progress_callback: (p) => {
+          if (p.status === 'progress' && p.progress != null) {
+            progressFill.style.width = p.progress + '%';
+            progressPct.textContent = Math.round(p.progress) + '%';
+          }
+        }
+      });
+      setModelStatus('loaded', 'Model ready');
+      progress.style.display = 'none';
+      if (currentImgDataURL) upscaleBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      setModelStatus('error', 'Failed to load model');
+      progress.style.display = 'none';
+    }
+  }
+
+  sampleGallery.innerHTML = SAMPLES.map(s =>
+    `<div class="sample-item" data-url="${s.url}" data-label="${s.label}">
+       <img src="${s.url}" alt="${s.label}" loading="lazy" crossorigin="anonymous">
+     </div>`
+  ).join('');
+  sampleGallery.addEventListener('click', e => {
+    const item = e.target.closest('.sample-item');
+    if (!item) return;
+    document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+    item.classList.add('active');
+    loadFromUrl(item.dataset.url, item.dataset.label);
+  });
+
+  dropZone.addEventListener('click', () => imageInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) handleFile(f);
+  });
+  imageInput.addEventListener('change', () => { if (imageInput.files[0]) handleFile(imageInput.files[0]); });
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => { loadFromDataURL(e.target.result, file.name); preview.src = e.target.result; preview.style.display = 'block'; };
+    reader.readAsDataURL(file);
+    document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+  }
+
+  function loadFromUrl(url, name) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      loadFromDataURL(c.toDataURL('image/png'), name);
+      preview.src = url; preview.style.display = 'block';
+    };
+    img.src = url;
+  }
+
+  function loadFromDataURL(dataURL, name) {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, MAX_INPUT / Math.max(img.naturalWidth, img.naturalHeight));
+      const sw = Math.round(img.naturalWidth * scale), sh = Math.round(img.naturalHeight * scale);
+      const tmp = document.createElement('canvas');
+      tmp.width = sw; tmp.height = sh;
+      tmp.getContext('2d').drawImage(img, 0, 0, sw, sh);
+      currentImgDataURL = tmp.toDataURL('image/png');
+      currentOrigW = sw; currentOrigH = sh;
+
+      origCanvas.width = sw; origCanvas.height = sh;
+      origCanvas.getContext('2d').drawImage(img, 0, 0, sw, sh);
+      origCanvas.style.display = 'block';
+      origPlaceholder.style.display = 'none';
+      origLabel.textContent = `Original — ${sw}×${sh}px`;
+      inputDims.textContent  = `${sw}×${sh}`;
+      outputDims.textContent = `${sw*2}×${sh*2}`;
+
+      upCanvas.style.display = 'none'; upPlaceholder.style.display = '';
+      upLabel.textContent = 'AI Upscaled';
+      statsCard.classList.add('hidden'); canvasActions.classList.add('hidden');
+      if (pipe) upscaleBtn.disabled = false;
+      if (scale < 1) statusEl.textContent = `Resized to ${sw}×${sh} (max ${MAX_INPUT}px)`;
+    };
+    img.src = dataURL;
+  }
+
+  upscaleBtn.addEventListener('click', async () => {
+    if (!pipe || !currentImgDataURL) return;
+    upscaleBtn.disabled = true;
+    spinOverlay.classList.add('active');
+    upCanvas.style.display = 'none'; upPlaceholder.style.display = 'none';
+    statsCard.classList.add('hidden'); canvasActions.classList.add('hidden');
+    statusEl.textContent = 'Running Swin2SR…';
+    const t0 = performance.now();
+    try {
+      const output = await pipe(currentImgDataURL);
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      const { width: ow, height: oh, data, channels } = output;
+      upCanvas.width = ow; upCanvas.height = oh;
+      const ctx = upCanvas.getContext('2d');
+      let rgba;
+      if (channels === 4) {
+        rgba = data instanceof Uint8ClampedArray ? data : new Uint8ClampedArray(data);
+      } else if (channels === 3) {
+        rgba = new Uint8ClampedArray(ow * oh * 4);
+        for (let i = 0, j = 0; i < ow * oh * 3; i += 3, j += 4) {
+          rgba[j] = data[i]; rgba[j+1] = data[i+1]; rgba[j+2] = data[i+2]; rgba[j+3] = 255;
+        }
+      } else {
+        rgba = new Uint8ClampedArray(ow * oh * 4);
+        for (let i = 0, j = 0; i < ow * oh; i++, j += 4) {
+          rgba[j] = rgba[j+1] = rgba[j+2] = data[i]; rgba[j+3] = 255;
+        }
+      }
+      ctx.putImageData(new ImageData(rgba, ow, oh), 0, 0);
+      upCanvas.style.display = 'block'; upPlaceholder.style.display = 'none';
+      upLabel.textContent = `AI Upscaled — ${ow}×${oh}px`;
+      document.getElementById('statInput').textContent  = `${currentOrigW}×${currentOrigH}`;
+      document.getElementById('statOutput').textContent = `${ow}×${oh}`;
+      document.getElementById('statTime').textContent   = `${elapsed}s`;
+      statsCard.classList.remove('hidden');
+      canvasActions.classList.remove('hidden');
+      statusEl.textContent = `Done in ${elapsed}s — upscaled to ${ow}×${oh}`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Error: ' + err.message;
+      upPlaceholder.style.display = '';
+    } finally {
+      spinOverlay.classList.remove('active');
+      upscaleBtn.disabled = false;
+    }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = upCanvas.toDataURL('image/png');
+    a.download = `pixelboost_${currentOrigW*2}x${currentOrigH*2}.png`;
+    a.click();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    currentImgDataURL = null; currentOrigW = 0; currentOrigH = 0;
+    origCanvas.style.display = 'none'; origPlaceholder.style.display = '';
+    upCanvas.style.display = 'none'; upPlaceholder.style.display = '';
+    origLabel.textContent = 'Original'; upLabel.textContent = 'AI Upscaled';
+    inputDims.textContent = outputDims.textContent = '—';
+    statsCard.classList.add('hidden'); canvasActions.classList.add('hidden');
+    upscaleBtn.disabled = true; preview.style.display = 'none'; imageInput.value = '';
+    document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+    statusEl.textContent = '';
+  });
+
+  loadModel();
+</script>
+</body>
+</html>

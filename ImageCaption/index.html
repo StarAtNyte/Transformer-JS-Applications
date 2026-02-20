@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PixelCaption - AI Image Captioning</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 1rem; }
+    .grid { display: grid; gap: 24px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 320px 1fr; } }
+    .card {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .icon { width: 20px; height: 20px; }
+    .dropzone {
+      border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+    .dropzone p { color: #666; font-size: 0.9rem; }
+    .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+    #preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin: 12px auto 0; display: none; }
+    .btn {
+      width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-top: 12px;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary {
+      background: #e2e8f0; color: #333; padding: 8px 16px; border: none;
+      border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      transition: all 0.2s; width: auto; margin-top: 0;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+    .btn-secondary:disabled { background: #f1f5f9; color: #999; cursor: not-allowed; }
+    .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+    .progress { margin-top: 12px; display: none; }
+    .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      width: 0%; transition: width 0.3s;
+    }
+    .progress-text {
+      font-size: 0.75rem; color: #999; margin-top: 4px;
+      display: flex; justify-content: space-between;
+    }
+    .model-status {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      border-radius: 8px; margin-bottom: 16px;
+    }
+    .model-status.loaded { background: #f0fdf4; }
+    .model-status.loading { background: #fef3c7; }
+    .model-status.error { background: #fef2f2; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+    .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+    .model-status.error .dot { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .sample-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+    .sample-item:hover { transform: scale(1.05); }
+    .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+    .prefix-input {
+      width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+      font-size: 0.9rem; color: #333; outline: none; transition: border-color 0.2s; margin-top: 8px;
+      font-family: inherit;
+    }
+    .prefix-input:focus { border-color: #6366f1; }
+    .input-hint { font-size: 0.75rem; color: #999; margin-top: 4px; }
+    .canvas-wrap {
+      background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;
+      overflow: hidden; min-height: 200px; display: flex; align-items: center;
+      justify-content: center; padding: 8px;
+    }
+    #mainImg { max-width: 100%; max-height: 320px; border-radius: 6px; display: none; }
+    .canvas-placeholder {
+      color: #aaa; font-size: 0.9rem; text-align: center; padding: 48px;
+    }
+    .canvas-placeholder svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+    .caption-box {
+      margin-top: 16px; padding: 16px 18px;
+      background: #f5f3ff; border-left: 4px solid #6366f1; border-radius: 8px;
+      font-size: 1.2rem; line-height: 1.6; color: #1a1a2e; font-weight: 500;
+      min-height: 60px; display: none;
+    }
+    .caption-box.visible { display: block; }
+    .caption-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .caption-time { font-size: 0.8rem; color: #999; }
+    .caption-actions { display: flex; gap: 8px; }
+    .variant-section { margin-top: 16px; display: none; }
+    .variant-section.visible { display: block; }
+    .variant-title { font-size: 0.8rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .variant-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+      background: #f9fafb; border-radius: 6px; margin-bottom: 6px;
+      border: 1px solid #e5e7eb; cursor: pointer; transition: background 0.15s;
+      font-size: 0.9rem; color: #374151; line-height: 1.5;
+    }
+    .variant-item:hover { background: #f5f3ff; border-color: #c7d2fe; }
+    .variant-num {
+      width: 20px; height: 20px; background: #6366f1; color: white; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .history-list { margin-top: 12px; }
+    .history-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    .history-item:last-child { border-bottom: none; }
+    .history-thumb { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+    .history-caption { font-size: 0.85rem; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-ts { font-size: 0.72rem; color: #9ca3af; margin-top: 2px; }
+    .history-empty { color: #aaa; font-size: 0.85rem; }
+    .controls-bar {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      margin-bottom: 16px; padding: 12px 16px; background: #f1f5f9; border-radius: 8px;
+    }
+    .spinner-inline {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: white;
+      border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+    footer { text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem; }
+    footer a { color: #6366f1; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>PixelCaption</h1>
+    <p class="subtitle">Generate natural language descriptions of any image — runs entirely in your browser</p>
+  </header>
+
+  <div class="grid">
+    <div class="sidebar">
+      <div class="card">
+        <div id="modelStatus" class="model-status loading">
+          <span class="dot"></span>
+          <span id="modelStatusText">Loading model...</span>
+        </div>
+
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          Upload Image
+        </h2>
+
+        <div id="dropZone" class="dropzone">
+          <input type="file" id="imageInput" accept="image/*" hidden />
+          <p>Drop image here or click</p>
+          <p class="hint">PNG, JPG, WebP</p>
+          <img id="preview" alt="Preview" crossorigin="anonymous" />
+        </div>
+
+        <button id="generateBtn" class="btn btn-primary" disabled>✨ Generate Caption</button>
+        <button id="moreBtn" class="btn btn-primary" disabled style="background:#7c3aed;margin-top:8px;">↻ Generate Variants</button>
+
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress">
+          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          <div class="progress-text">
+            <span id="progressLabel">Loading...</span>
+            <span id="progressPercent">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          Sample Images
+        </h2>
+        <div id="sampleGallery" class="sample-grid"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Options
+        </h2>
+        <label style="font-size:0.85rem;color:#666;font-weight:500;">Text Prefix <em style="font-weight:400;">(optional)</em></label>
+        <input type="text" id="prefixInput" class="prefix-input" placeholder="e.g. a photo of" />
+        <p class="input-hint">Guides the model — leave blank for free captioning.</p>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+          Caption Output
+        </h2>
+
+        <div class="canvas-wrap">
+          <img id="mainImg" alt="Selected" crossorigin="anonymous" />
+          <div id="canvasPlaceholder" class="canvas-placeholder">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <p>Upload or select an image, then click "Generate Caption"</p>
+          </div>
+        </div>
+
+        <div id="captionBox" class="caption-box"></div>
+        <div class="caption-meta" id="captionMeta" style="display:none;">
+          <span class="caption-time" id="captionTime"></span>
+          <div class="caption-actions">
+            <button class="btn-secondary" id="copyBtn">📋 Copy</button>
+            <button class="btn-secondary" id="downloadBtn">⬇ Download .txt</button>
+          </div>
+        </div>
+
+        <div id="variantSection" class="variant-section">
+          <div class="variant-title">Variants — click to use</div>
+          <div id="variantList"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Recent Captions
+        </h2>
+        <div id="historyList" class="history-list">
+          <p class="history-empty">No captions generated yet.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      Powered by
+      <a href="https://huggingface.co/Xenova/vit-gpt2-image-captioning" target="_blank">ViT-GPT2</a>
+      &amp;
+      <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>
+    </p>
+  </footer>
+</div>
+
+<script type="module">
+  const MODEL_ID = 'Xenova/vit-gpt2-image-captioning';
+  const SAMPLES = [
+    { url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop', label: 'Mountain' },
+    { url: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop', label: 'Dog' },
+    { url: 'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=400&h=400&fit=crop', label: 'Food' },
+    { url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=400&h=400&fit=crop', label: 'City' },
+    { url: 'https://images.unsplash.com/photo-1518791841217-8f162f1912da?w=400&h=400&fit=crop', label: 'Cat' },
+    { url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&h=400&fit=crop', label: 'Forest' },
+    { url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop', label: 'Person' },
+    { url: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400&h=400&fit=crop', label: 'Dogs' },
+    { url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=400&fit=crop', label: 'Nature' },
+  ];
+
+  let captioner = null;
+  let currentSrc = null, currentName = 'image', isRunning = false;
+  const history = [];
+
+  const modelStatus    = document.getElementById('modelStatus');
+  const modelStatusTxt = document.getElementById('modelStatusText');
+  const dropZone       = document.getElementById('dropZone');
+  const imageInput     = document.getElementById('imageInput');
+  const preview        = document.getElementById('preview');
+  const generateBtn    = document.getElementById('generateBtn');
+  const moreBtn        = document.getElementById('moreBtn');
+  const statusEl       = document.getElementById('status');
+  const progress       = document.getElementById('progress');
+  const progressFill   = document.getElementById('progressFill');
+  const progressLabel  = document.getElementById('progressLabel');
+  const progressPct    = document.getElementById('progressPercent');
+  const sampleGallery  = document.getElementById('sampleGallery');
+  const prefixInput    = document.getElementById('prefixInput');
+  const mainImg        = document.getElementById('mainImg');
+  const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+  const captionBox     = document.getElementById('captionBox');
+  const captionMeta    = document.getElementById('captionMeta');
+  const captionTime    = document.getElementById('captionTime');
+  const copyBtn        = document.getElementById('copyBtn');
+  const downloadBtn    = document.getElementById('downloadBtn');
+  const variantSection = document.getElementById('variantSection');
+  const variantList    = document.getElementById('variantList');
+  const historyList    = document.getElementById('historyList');
+
+  function setModelStatus(state, text) {
+    modelStatus.className = 'model-status ' + state;
+    modelStatusTxt.textContent = text;
+  }
+  function setButtons(on) { generateBtn.disabled = !on; moreBtn.disabled = !on; }
+
+  async function loadModel() {
+    setModelStatus('loading', 'Loading model...');
+    progress.style.display = 'block';
+    progressLabel.textContent = 'Downloading ViT-GPT2...';
+    try {
+      (function() {
+        function openModelDB() {
+          return new Promise((resolve, reject) => {
+            const req = indexedDB.open('onnx-model-cache', 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = e => reject(e.target.error);
+          });
+        }
+        async function getFromDB(url) {
+          try {
+            const db = await openModelDB();
+            return new Promise(resolve => {
+              const req = db.transaction('models', 'readonly').objectStore('models').get(url);
+              req.onsuccess = e => resolve(e.target.result || null);
+              req.onerror = () => resolve(null);
+            });
+          } catch(e) { return null; }
+        }
+        function saveToDB(url, buffer) {
+          openModelDB().then(db => {
+            const tx = db.transaction('models', 'readwrite');
+            tx.objectStore('models').put(buffer, url);
+          }).catch(() => {});
+        }
+        const _fetch = globalThis.fetch.bind(globalThis);
+        globalThis.fetch = async function(input, init) {
+          const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+          const isHF = url.indexOf('huggingface.co') !== -1;
+          const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+          if (isHF && isGet) {
+            const cached = await getFromDB(url);
+            if (cached) {
+              return new Response(cached, {
+                status: 200,
+                headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '' + cached.byteLength }
+              });
+            }
+            const response = await _fetch(input, init);
+            if (response.ok) {
+              const buffer = await response.clone().arrayBuffer();
+              saveToDB(url, buffer);
+            }
+            return response;
+          }
+          return _fetch(input, init);
+        };
+      })();
+      const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+      if (T.env) T.env.allowLocalModels = false;
+      captioner = await T.pipeline('image-to-text', MODEL_ID, {
+        progress_callback: (p) => {
+          if (p.status === 'progress' && p.progress != null) {
+            progressFill.style.width = p.progress + '%';
+            progressPct.textContent = Math.round(p.progress) + '%';
+          }
+        }
+      });
+      setModelStatus('loaded', 'Model ready');
+      progress.style.display = 'none';
+      if (currentSrc) setButtons(true);
+    } catch (err) {
+      console.error(err);
+      setModelStatus('error', 'Failed to load model');
+      progress.style.display = 'none';
+      statusEl.textContent = 'Error: ' + err.message;
+    }
+  }
+
+  // Sample gallery
+  sampleGallery.innerHTML = SAMPLES.map((s, i) =>
+    `<div class="sample-item" data-url="${s.url}" data-label="${s.label}">
+       <img src="${s.url}" alt="${s.label}" crossorigin="anonymous">
+     </div>`
+  ).join('');
+  sampleGallery.addEventListener('click', e => {
+    const item = e.target.closest('.sample-item');
+    if (!item) return;
+    setImage(item.dataset.url, item.dataset.label);
+    preview.src = item.dataset.url; preview.style.display = 'block';
+  });
+
+  // Drop zone
+  dropZone.addEventListener('click', () => imageInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) handleFile(f);
+  });
+  imageInput.addEventListener('change', () => { if (imageInput.files[0]) handleFile(imageInput.files[0]); });
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.src = e.target.result; preview.style.display = 'block';
+      setImage(e.target.result, file.name.replace(/\.[^.]+$/, ''));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setImage(url, name) {
+    currentSrc = url; currentName = name || 'image';
+    mainImg.src = url; mainImg.style.display = 'block';
+    canvasPlaceholder.style.display = 'none';
+    captionBox.classList.remove('visible');
+    captionMeta.style.display = 'none';
+    variantSection.classList.remove('visible');
+    if (captioner) setButtons(true);
+  }
+
+  async function runCaption(variants) {
+    if (!captioner || !currentSrc || isRunning) return;
+    isRunning = true; setButtons(false);
+    statusEl.textContent = variants ? 'Generating variants...' : 'Generating caption...';
+    captionBox.classList.remove('visible');
+    captionMeta.style.display = 'none';
+    variantSection.classList.remove('visible');
+
+    try {
+      const t0 = performance.now();
+      const opts = { max_new_tokens: 50 };
+      if (variants) { opts.num_beams = 4; opts.num_return_sequences = 4; }
+      const raw = await captioner(currentSrc, opts);
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+      let texts = (Array.isArray(raw) ? raw : [raw])
+        .map(r => (typeof r === 'string' ? r : r.generated_text || '').trim())
+        .filter(Boolean);
+      texts = [...new Set(texts)];
+      if (!texts.length) texts = ['(no caption generated)'];
+
+      const prefix = prefixInput.value.trim();
+      if (prefix) {
+        texts = texts.map(t => t.toLowerCase().startsWith(prefix.toLowerCase()) ? t : prefix + ' ' + t);
+      }
+
+      captionBox.textContent = texts[0];
+      captionBox.classList.add('visible');
+      captionTime.textContent = `⏱ ${elapsed}s`;
+      captionMeta.style.display = 'flex';
+
+      if (variants && texts.length > 1) {
+        variantList.innerHTML = texts.map((t, i) =>
+          `<div class="variant-item" data-text="${t.replace(/"/g,'&quot;')}">
+             <div class="variant-num">${i+1}</div><div>${esc(t)}</div>
+           </div>`
+        ).join('');
+        variantSection.classList.add('visible');
+        variantList.querySelectorAll('.variant-item').forEach(el => {
+          el.addEventListener('click', () => { captionBox.textContent = el.dataset.text; });
+        });
+      }
+
+      addHistory(currentSrc, texts[0]);
+      statusEl.textContent = `Done in ${elapsed}s`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Error: ' + err.message;
+    } finally {
+      isRunning = false;
+      if (captioner && currentSrc) setButtons(true);
+    }
+  }
+
+  generateBtn.addEventListener('click', () => runCaption(false));
+  moreBtn.addEventListener('click',     () => runCaption(true));
+
+  copyBtn.addEventListener('click', () => {
+    const t = captionBox.textContent;
+    if (t) navigator.clipboard.writeText(t).catch(() => {});
+  });
+  downloadBtn.addEventListener('click', () => {
+    const t = captionBox.textContent;
+    if (!t) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain' }));
+    a.download = currentName + '-caption.txt'; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  function addHistory(src, caption) {
+    history.unshift({ src, caption, ts: new Date().toLocaleTimeString() });
+    if (history.length > 5) history.pop();
+    historyList.innerHTML = history.map(h =>
+      `<div class="history-item">
+         <img class="history-thumb" src="${h.src}" crossorigin="anonymous" alt="">
+         <div>
+           <div class="history-caption">${esc(h.caption)}</div>
+           <div class="history-ts">${h.ts}</div>
+         </div>
+       </div>`
+    ).join('');
+  }
+
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  loadModel();
+</script>
+</body>
+</html>

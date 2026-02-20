@@ -456,6 +456,54 @@
 
         <script type="module">
             const florenceWorkerCode = `
+                (function() {
+                    function openModelDB() {
+                        return new Promise((resolve, reject) => {
+                            const req = indexedDB.open('onnx-model-cache', 1);
+                            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                            req.onsuccess = e => resolve(e.target.result);
+                            req.onerror = e => reject(e.target.error);
+                        });
+                    }
+                    async function getFromDB(url) {
+                        try {
+                            const db = await openModelDB();
+                            return new Promise(resolve => {
+                                const req = db.transaction('models', 'readonly').objectStore('models').get(url);
+                                req.onsuccess = e => resolve(e.target.result || null);
+                                req.onerror = () => resolve(null);
+                            });
+                        } catch(e) { return null; }
+                    }
+                    function saveToDB(url, buffer) {
+                        openModelDB().then(db => {
+                            const tx = db.transaction('models', 'readwrite');
+                            tx.objectStore('models').put(buffer, url);
+                        }).catch(() => {});
+                    }
+                    const _fetch = globalThis.fetch.bind(globalThis);
+                    globalThis.fetch = async function(input, init) {
+                        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+                        const isHF = url.indexOf('huggingface.co') !== -1;
+                        const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+                        if (isHF && isGet) {
+                            const cached = await getFromDB(url);
+                            if (cached) {
+                                return new Response(cached, {
+                                    status: 200,
+                                    headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '' + cached.byteLength }
+                                });
+                            }
+                            const response = await _fetch(input, init);
+                            if (response.ok) {
+                                const buffer = await response.clone().arrayBuffer();
+                                saveToDB(url, buffer);
+                            }
+                            return response;
+                        }
+                        return _fetch(input, init);
+                    };
+                })();
                 let Florence2ForConditionalGeneration, AutoProcessor, RawImage, env;
                 let processor = null, model = null;
 
@@ -514,6 +562,54 @@
             `;
 
             const qwenWorkerCode = `
+                (function() {
+                    function openModelDB() {
+                        return new Promise((resolve, reject) => {
+                            const req = indexedDB.open('onnx-model-cache', 1);
+                            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                            req.onsuccess = e => resolve(e.target.result);
+                            req.onerror = e => reject(e.target.error);
+                        });
+                    }
+                    async function getFromDB(url) {
+                        try {
+                            const db = await openModelDB();
+                            return new Promise(resolve => {
+                                const req = db.transaction('models', 'readonly').objectStore('models').get(url);
+                                req.onsuccess = e => resolve(e.target.result || null);
+                                req.onerror = () => resolve(null);
+                            });
+                        } catch(e) { return null; }
+                    }
+                    function saveToDB(url, buffer) {
+                        openModelDB().then(db => {
+                            const tx = db.transaction('models', 'readwrite');
+                            tx.objectStore('models').put(buffer, url);
+                        }).catch(() => {});
+                    }
+                    const _fetch = globalThis.fetch.bind(globalThis);
+                    globalThis.fetch = async function(input, init) {
+                        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+                        const isHF = url.indexOf('huggingface.co') !== -1;
+                        const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+                        if (isHF && isGet) {
+                            const cached = await getFromDB(url);
+                            if (cached) {
+                                return new Response(cached, {
+                                    status: 200,
+                                    headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '' + cached.byteLength }
+                                });
+                            }
+                            const response = await _fetch(input, init);
+                            if (response.ok) {
+                                const buffer = await response.clone().arrayBuffer();
+                                saveToDB(url, buffer);
+                            }
+                            return response;
+                        }
+                        return _fetch(input, init);
+                    };
+                })();
                 let Qwen2VLForConditionalGeneration, AutoProcessor, RawImage, env;
                 let processor = null, model = null;
 

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLIPMatch - Zero-Shot Image Classification</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 1rem; }
+    .grid { display: grid; gap: 24px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 320px 1fr; } }
+    .card {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .icon { width: 20px; height: 20px; }
+    .dropzone {
+      border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+    .dropzone p { color: #666; font-size: 0.9rem; }
+    .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+    #preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin: 12px auto 0; display: none; }
+    .btn {
+      width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-top: 12px;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+    .progress { margin-top: 12px; display: none; }
+    .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      width: 0%; transition: width 0.3s;
+    }
+    .progress-text {
+      font-size: 0.75rem; color: #999; margin-top: 4px;
+      display: flex; justify-content: space-between;
+    }
+    .model-status {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      border-radius: 8px; margin-bottom: 16px;
+    }
+    .model-status.loaded { background: #f0fdf4; }
+    .model-status.loading { background: #fef3c7; }
+    .model-status.error { background: #fef2f2; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+    .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+    .model-status.error .dot { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .sample-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.2s; border: 2px solid transparent; }
+    .sample-item:hover { transform: scale(1.05); border-color: #6366f1; }
+    .sample-item.active { border-color: #6366f1; box-shadow: 0 0 0 2px #c7d2fe; }
+    .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+    .labels-textarea {
+      width: 100%; min-height: 90px; padding: 10px; border: 1px solid #e2e8f0;
+      border-radius: 8px; font-size: 0.9rem; resize: vertical; font-family: inherit;
+      line-height: 1.5; transition: border-color 0.2s; color: #333; outline: none;
+    }
+    .labels-textarea:focus { border-color: #6366f1; }
+    .input-hint { font-size: 0.75rem; color: #999; margin-top: 5px; }
+    .presets-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+    .preset-label { font-size: 0.75rem; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; }
+    .btn-preset {
+      background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 20px;
+      padding: 3px 10px; font-size: 0.75rem; font-weight: 500; color: #374151;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-preset:hover { background: #ede9fe; border-color: #a5b4fc; color: #6366f1; }
+    .canvas-wrap {
+      background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;
+      overflow: hidden; min-height: 200px; display: flex; align-items: center;
+      justify-content: center; padding: 8px; margin-bottom: 20px;
+    }
+    #mainImg { max-width: 100%; max-height: 320px; border-radius: 6px; display: none; }
+    .canvas-placeholder { color: #aaa; font-size: 0.9rem; text-align: center; padding: 48px; }
+    .canvas-placeholder svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+    .results-list { display: flex; flex-direction: column; gap: 10px; }
+    .result-row { display: flex; align-items: center; gap: 10px; animation: fadeUp 0.3s ease both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .result-label {
+      width: 160px; flex-shrink: 0; font-size: 0.85rem; font-weight: 500; color: #374151;
+      text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .result-label.top { color: #4f46e5; font-weight: 700; }
+    .bar-track { flex: 1; height: 22px; background: #f3f4f6; border-radius: 99px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); width: 0%; }
+    .bar-top   { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+    .bar-mid   { background: linear-gradient(90deg, #a5b4fc, #c4b5fd); }
+    .bar-low   { background: #d1d5db; }
+    .result-pct { width: 46px; flex-shrink: 0; font-size: 0.85rem; font-weight: 600; color: #374151; text-align: right; }
+    .result-pct.top { color: #6366f1; }
+    .results-empty { color: #aaa; font-size: 0.9rem; text-align: center; padding: 32px; }
+    .hidden { display: none !important; }
+    footer { text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem; }
+    footer a { color: #6366f1; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>CLIPMatch</h1>
+    <p class="subtitle">Classify any image using your own text labels — zero-shot, no training required</p>
+  </header>
+
+  <div class="grid">
+    <div class="sidebar">
+      <div class="card">
+        <div id="modelStatus" class="model-status loading">
+          <span class="dot"></span>
+          <span id="modelStatusText">Loading model...</span>
+        </div>
+
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          Upload Image
+        </h2>
+        <div id="dropZone" class="dropzone">
+          <input type="file" id="imageInput" accept="image/*" hidden />
+          <p>Drop image here or click</p>
+          <p class="hint">PNG, JPG, WebP</p>
+          <img id="preview" alt="Preview" crossorigin="anonymous" />
+        </div>
+        <button id="matchBtn" class="btn btn-primary" disabled>Match Labels</button>
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress">
+          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          <div class="progress-text">
+            <span id="progressLabel">Loading...</span><span id="progressPercent">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          Sample Images
+        </h2>
+        <div id="sampleGallery" class="sample-grid"></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+          </svg>
+          Classification Labels
+        </h2>
+
+        <div class="canvas-wrap">
+          <img id="mainImg" alt="Selected" crossorigin="anonymous" />
+          <div id="canvasPlaceholder" class="canvas-placeholder">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <p>Upload or select an image to classify</p>
+          </div>
+        </div>
+
+        <textarea id="labelsInput" class="labels-textarea" placeholder="Type comma-separated labels...">a dog, a cat, a bird, a car, a person, a building, food, nature, art</textarea>
+        <p class="input-hint">Separate labels with commas. Be descriptive — "a golden retriever" beats "dog".</p>
+
+        <div class="presets-row">
+          <span class="preset-label">Presets:</span>
+          <button class="btn-preset" data-preset="animals">Animals</button>
+          <button class="btn-preset" data-preset="places">Places</button>
+          <button class="btn-preset" data-preset="objects">Objects</button>
+          <button class="btn-preset" data-preset="moods">Moods</button>
+          <button class="btn-preset" data-preset="art">Art</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          Match Results
+        </h2>
+        <div id="resultsList" class="results-list">
+          <p class="results-empty">Results will appear here after matching.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      Powered by
+      <a href="https://huggingface.co/Xenova/clip-vit-base-patch32" target="_blank">CLIP</a>
+      &amp;
+      <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>
+    </p>
+  </footer>
+</div>
+
+<script type="module">
+  const PRESETS = {
+    animals: 'a dog, a cat, a bird, a horse, a fish, a lion, a bear, an elephant',
+    places:  'a beach, a forest, a city, a mountain, a desert, a bedroom, a kitchen, a street',
+    objects: 'a car, a phone, a book, a chair, a lamp, a bottle, a keyboard, a clock',
+    moods:   'joyful, sad, peaceful, chaotic, mysterious, romantic, dramatic, playful',
+    art:     'photography, painting, sketch, digital art, watercolor, oil painting, cartoon',
+  };
+  const SAMPLES = [
+    { url: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop', label: 'Dog' },
+    { url: 'https://images.unsplash.com/photo-1518791841217-8f162f1912da?w=400&h=400&fit=crop', label: 'Cat' },
+    { url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop', label: 'Mountain' },
+    { url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=400&h=400&fit=crop', label: 'City' },
+    { url: 'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=400&h=400&fit=crop', label: 'Food' },
+    { url: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=400&h=400&fit=crop', label: 'Beach' },
+    { url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&h=400&fit=crop', label: 'Forest' },
+    { url: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400&h=400&fit=crop', label: 'Dogs' },
+    { url: 'https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=400&h=400&fit=crop', label: 'Art' },
+  ];
+
+  let classifier = null, currentSrc = null, isRunning = false;
+
+  const modelStatus    = document.getElementById('modelStatus');
+  const modelStatusTxt = document.getElementById('modelStatusText');
+  const dropZone       = document.getElementById('dropZone');
+  const imageInput     = document.getElementById('imageInput');
+  const preview        = document.getElementById('preview');
+  const matchBtn       = document.getElementById('matchBtn');
+  const statusEl       = document.getElementById('status');
+  const progress       = document.getElementById('progress');
+  const progressFill   = document.getElementById('progressFill');
+  const progressLabel  = document.getElementById('progressLabel');
+  const progressPct    = document.getElementById('progressPercent');
+  const sampleGallery  = document.getElementById('sampleGallery');
+  const labelsInput    = document.getElementById('labelsInput');
+  const mainImg        = document.getElementById('mainImg');
+  const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+  const resultsList    = document.getElementById('resultsList');
+
+  function setModelStatus(state, text) { modelStatus.className = 'model-status ' + state; modelStatusTxt.textContent = text; }
+
+  async function loadModel() {
+    setModelStatus('loading', 'Loading model...');
+    progress.style.display = 'block';
+    progressLabel.textContent = 'Downloading CLIP...';
+    try {
+      (function() {
+        function openModelDB() {
+          return new Promise((resolve, reject) => {
+            const req = indexedDB.open('onnx-model-cache', 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = e => reject(e.target.error);
+          });
+        }
+        async function getFromDB(url) {
+          try {
+            const db = await openModelDB();
+            return new Promise(resolve => {
+              const req = db.transaction('models', 'readonly').objectStore('models').get(url);
+              req.onsuccess = e => resolve(e.target.result || null);
+              req.onerror = () => resolve(null);
+            });
+          } catch(e) { return null; }
+        }
+        function saveToDB(url, buffer) {
+          openModelDB().then(db => {
+            const tx = db.transaction('models', 'readwrite');
+            tx.objectStore('models').put(buffer, url);
+          }).catch(() => {});
+        }
+        const _fetch = globalThis.fetch.bind(globalThis);
+        globalThis.fetch = async function(input, init) {
+          const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+          const isHF = url.indexOf('huggingface.co') !== -1;
+          const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+          if (isHF && isGet) {
+            const cached = await getFromDB(url);
+            if (cached) {
+              return new Response(cached, {
+                status: 200,
+                headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': '' + cached.byteLength }
+              });
+            }
+            const response = await _fetch(input, init);
+            if (response.ok) {
+              const buffer = await response.clone().arrayBuffer();
+              saveToDB(url, buffer);
+            }
+            return response;
+          }
+          return _fetch(input, init);
+        };
+      })();
+      const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+      if (T.env) T.env.allowLocalModels = false;
+      classifier = await T.pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', {
+        progress_callback: (p) => {
+          if (p.status === 'progress' && p.progress != null) {
+            progressFill.style.width = p.progress + '%';
+            progressPct.textContent = Math.round(p.progress) + '%';
+          }
+        }
+      });
+      setModelStatus('loaded', 'Model ready');
+      progress.style.display = 'none';
+      if (currentSrc) matchBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      setModelStatus('error', 'Failed to load model');
+      progress.style.display = 'none';
+    }
+  }
+
+  sampleGallery.innerHTML = SAMPLES.map((s, i) =>
+    `<div class="sample-item" data-url="${s.url}" data-label="${s.label}">
+       <img src="${s.url}" alt="${s.label}" crossorigin="anonymous">
+     </div>`
+  ).join('');
+  sampleGallery.addEventListener('click', e => {
+    const item = e.target.closest('.sample-item');
+    if (!item) return;
+    document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+    item.classList.add('active');
+    setImage(item.dataset.url);
+    preview.src = item.dataset.url; preview.style.display = 'block';
+  });
+
+  document.querySelectorAll('.btn-preset').forEach(btn => {
+    btn.addEventListener('click', () => { labelsInput.value = PRESETS[btn.dataset.preset]; });
+  });
+
+  dropZone.addEventListener('click', () => imageInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) handleFile(f);
+  });
+  imageInput.addEventListener('change', () => { if (imageInput.files[0]) handleFile(imageInput.files[0]); });
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.src = e.target.result; preview.style.display = 'block';
+      document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+      setImage(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setImage(url) {
+    currentSrc = url;
+    mainImg.src = url; mainImg.style.display = 'block';
+    canvasPlaceholder.style.display = 'none';
+    resultsList.innerHTML = '<p class="results-empty">Results will appear here after matching.</p>';
+    if (classifier) matchBtn.disabled = false;
+  }
+
+  matchBtn.addEventListener('click', async () => {
+    if (!classifier || !currentSrc || isRunning) return;
+    const labels = labelsInput.value.split(',').map(l => l.trim()).filter(Boolean);
+    if (!labels.length) { alert('Please enter at least one label.'); return; }
+    isRunning = true; matchBtn.disabled = true;
+    statusEl.textContent = 'Matching...';
+    resultsList.innerHTML = '<p class="results-empty">Running CLIP inference...</p>';
+    try {
+      const t0 = performance.now();
+      const out = await classifier(currentSrc, labels);
+      const sorted = [...out].sort((a, b) => b.score - a.score);
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+      renderResults(sorted);
+      statusEl.textContent = `Done in ${elapsed}s — top: "${sorted[0].label}"`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Error: ' + err.message;
+      resultsList.innerHTML = '<p class="results-empty">Classification failed.</p>';
+    } finally {
+      isRunning = false;
+      if (classifier && currentSrc) matchBtn.disabled = false;
+    }
+  });
+
+  function renderResults(sorted) {
+    const topScore = sorted[0]?.score || 1;
+    resultsList.innerHTML = '';
+    sorted.forEach((item, idx) => {
+      const pct = (item.score * 100).toFixed(1);
+      const w   = ((item.score / topScore) * 100).toFixed(1);
+      const barClass = idx === 0 ? 'bar-top' : item.score >= topScore * 0.5 ? 'bar-mid' : 'bar-low';
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      row.style.animationDelay = (idx * 0.04) + 's';
+      row.innerHTML =
+        `<div class="result-label ${idx === 0 ? 'top' : ''}" title="${item.label}">${item.label}</div>
+         <div class="bar-track"><div class="bar-fill ${barClass}" style="width:0" data-w="${w}%"></div></div>
+         <div class="result-pct ${idx === 0 ? 'top' : ''}">${pct}%</div>`;
+      resultsList.appendChild(row);
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelectorAll('.bar-fill').forEach(b => { b.style.width = b.dataset.w; });
+    }));
+  }
+
+  loadModel();
+</script>
+</body>
+</html>

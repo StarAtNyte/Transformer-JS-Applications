@@ -522,6 +522,37 @@
                 // Mean RGB values from the FHDMi training set (used for padding, matching demo_test.py)
                 const PAD_MEAN = [0.3827, 0.4141, 0.3912];
 
+                // ── IndexedDB model caching ──
+                async function openModelDB() {
+                    return new Promise((resolve, reject) => {
+                        const req = indexedDB.open('onnx-model-cache', 1);
+                        req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                        req.onsuccess = e => resolve(e.target.result);
+                        req.onerror = e => reject(e.target.error);
+                    });
+                }
+                async function getCachedModel(key) {
+                    try {
+                        const db = await openModelDB();
+                        return new Promise(resolve => {
+                            const req = db.transaction('models', 'readonly').objectStore('models').get(key);
+                            req.onsuccess = e => resolve(e.target.result || null);
+                            req.onerror = () => resolve(null);
+                        });
+                    } catch(e) { return null; }
+                }
+                async function cacheModel(key, buffer) {
+                    try {
+                        const db = await openModelDB();
+                        await new Promise(resolve => {
+                            const tx = db.transaction('models', 'readwrite');
+                            tx.objectStore('models').put(buffer, key);
+                            tx.oncomplete = resolve;
+                            tx.onerror = resolve;
+                        });
+                    } catch(e) {}
+                }
+
                 // ── DOM refs ──
                 const dropZone = document.getElementById("dropZone");
                 const imageInput = document.getElementById("imageInput");
@@ -662,27 +693,40 @@
                         const modelUrl = `${MODEL_DIR}/${name}.onnx?${MODEL_VER}`;
                         const dataUrl = `${MODEL_DIR}/${name}.onnx.data?${MODEL_VER}`;
 
-                        // Try fetching external data (some models have it, some don't)
+                        let modelBuf = await getCachedModel(modelUrl);
                         let externalData = [];
-                        const dataResp = await fetch(dataUrl, { method: "HEAD" });
-                        if (dataResp.ok) {
-                            progressLabel.textContent =
-                                "Downloading weights...";
-                            const dataBuf = await (
-                                await fetch(dataUrl)
-                            ).arrayBuffer();
-                            externalData = [
-                                {
-                                    path: `${name}.onnx.data`,
-                                    data: new Uint8Array(dataBuf),
-                                },
-                            ];
+
+                        if (modelBuf) {
+                            // Check if cached data exists too
+                            const cachedData = await getCachedModel(dataUrl);
+                            if (cachedData) {
+                                progressLabel.textContent = "Loading model from cache...";
+                                externalData = [{ path: `${name}.onnx.data`, data: new Uint8Array(cachedData) }];
+                            } else {
+                                progressLabel.textContent = "Loading model from cache...";
+                            }
+                        } else {
+                            // Fetch model first
+                            progressLabel.textContent = "Downloading model...";
+                            const modelResp = await fetch(modelUrl);
+                            if (!modelResp.ok) throw new Error(`Failed to fetch ${modelUrl}`);
+                            modelBuf = await modelResp.arrayBuffer();
+                            await cacheModel(modelUrl, modelBuf);
+
+                            // Try fetching external data (some models have it, some don't)
+                            const dataResp = await fetch(dataUrl, { method: "HEAD" });
+                            if (dataResp.ok) {
+                                progressLabel.textContent = "Downloading weights...";
+                                const dataBuf = await (await fetch(dataUrl)).arrayBuffer();
+                                await cacheModel(dataUrl, dataBuf);
+                                externalData = [{ path: `${name}.onnx.data`, data: new Uint8Array(dataBuf) }];
+                            }
                         }
 
                         progressFill.style.width = "80%";
                         progressLabel.textContent = "Initializing model...";
 
-                        session = await ort.InferenceSession.create(modelUrl, {
+                        session = await ort.InferenceSession.create(modelBuf, {
                             executionProviders: ["wasm"],
                             graphOptimizationLevel: "disabled",
                             ...(externalData.length > 0 && {
