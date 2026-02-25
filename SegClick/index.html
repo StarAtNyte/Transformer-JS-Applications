@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>SegClick - Click to Segment Anything</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+            }
+            .container { max-width: 1200px; margin: 0 auto; }
+            header { text-align: center; margin-bottom: 32px; }
+            h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+            .subtitle { color: #666; font-size: 1rem; }
+            .grid { display: grid; gap: 24px; }
+            @media (min-width: 900px) { .grid { grid-template-columns: 300px 1fr; } }
+            .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+            .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+            .icon { width: 20px; height: 20px; }
+            .dropzone {
+                border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+                text-align: center; cursor: pointer; transition: border-color 0.2s;
+            }
+            .dropzone:hover, .dropzone.dragover { border-color: #6366f1; }
+            .dropzone p { color: #666; font-size: 0.9rem; }
+            .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+            #preview { max-width: 100%; max-height: 130px; border-radius: 8px; margin: 10px auto 0; display: none; }
+            .btn {
+                width: 100%; padding: 11px 20px; border: none; border-radius: 8px;
+                font-size: 0.92rem; font-weight: 500; cursor: pointer; transition: all 0.2s; margin-top: 10px;
+            }
+            .btn-primary { background: #6366f1; color: white; }
+            .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+            .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+            .btn-outline { background: white; color: #6366f1; border: 1.5px solid #6366f1; }
+            .btn-outline:hover:not(:disabled) { background: #f0f0ff; }
+            .btn-outline:disabled { color: #ccc; border-color: #ccc; cursor: not-allowed; }
+            .btn-danger { background: white; color: #ef4444; border: 1.5px solid #ef4444; }
+            .btn-danger:hover:not(:disabled) { background: #fef2f2; }
+            .status { margin-top: 10px; text-align: center; font-size: 0.82rem; color: #666; min-height: 18px; }
+            .progress { margin-top: 10px; display: none; }
+            .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+            .progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6); width: 0%; transition: width 0.3s; }
+            .progress-text { font-size: 0.75rem; color: #999; margin-top: 4px; display: flex; justify-content: space-between; }
+            .model-status { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 0.85rem; font-weight: 500; }
+            .model-status.loaded { background: #f0fdf4; color: #166534; }
+            .model-status.loading { background: #fef3c7; color: #92400e; }
+            .model-status.error { background: #fef2f2; color: #991b1b; }
+            .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+            .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+            .model-status.error .dot { background: #ef4444; }
+            @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+            .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+            .sample-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+            .sample-item:hover { transform: scale(1.05); }
+            .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+
+            /* Point mode toggle */
+            .mode-row { display: flex; gap: 6px; margin-top: 14px; }
+            .mode-btn {
+                flex: 1; padding: 8px; border-radius: 7px; border: 1.5px solid #e8e8e8;
+                background: white; font-size: 0.8rem; cursor: pointer; font-weight: 500;
+                transition: all 0.15s; text-align: center;
+            }
+            .mode-btn.fg.active { background: #22c55e; border-color: #22c55e; color: white; }
+            .mode-btn.bg.active { background: #ef4444; border-color: #ef4444; color: white; }
+            .mode-hint { font-size: 0.75rem; color: #aaa; text-align: center; margin-top: 6px; }
+
+            /* Instructions */
+            .instructions {
+                background: #f8f9fa; border-radius: 8px; padding: 12px; margin-top: 12px;
+                font-size: 0.78rem; color: #666; line-height: 1.6;
+            }
+            .instructions strong { color: #333; }
+
+            /* IOU Score */
+            .score-badge {
+                display: inline-block; padding: 3px 10px; border-radius: 12px;
+                font-size: 0.75rem; font-weight: 600; margin-top: 10px;
+            }
+            .score-badge.good { background: #f0fdf4; color: #166534; }
+            .score-badge.ok { background: #fef3c7; color: #92400e; }
+            .score-badge.poor { background: #fef2f2; color: #991b1b; }
+
+            /* Canvas */
+            .canvas-wrap {
+                background: #1a1a2e; border-radius: 10px; overflow: hidden;
+                min-height: 350px; display: flex; align-items: center; justify-content: center;
+                position: relative; user-select: none;
+            }
+            #segCanvas {
+                display: none; max-width: 100%; height: auto; cursor: crosshair;
+                border-radius: 8px;
+            }
+            .canvas-placeholder {
+                color: #555; font-size: 0.9rem; text-align: center; padding: 48px;
+            }
+            .canvas-placeholder svg { width: 56px; height: 56px; margin-bottom: 14px; opacity: 0.3; }
+
+            /* Extract button strip */
+            .action-strip { display: flex; gap: 8px; margin-top: 12px; }
+            .action-strip .btn { margin-top: 0; }
+
+            footer { text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem; }
+            footer a { color: #6366f1; text-decoration: none; }
+            footer a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>SegClick</h1>
+                <p class="subtitle">Click anything to segment it — powered by SlimSAM running entirely in your browser</p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            Upload Image
+                        </h2>
+                        <div id="dropZone" class="dropzone">
+                            <input type="file" id="imageInput" accept="image/*" hidden />
+                            <p>Drop image here or click</p>
+                            <p class="hint">PNG, JPG, WebP</p>
+                            <img id="preview" alt="Preview" />
+                        </div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+                            <div class="progress-text">
+                                <span>Downloading model...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                        <div id="status" class="status"></div>
+
+                        <div class="mode-row">
+                            <button id="fgMode" class="mode-btn fg active" title="Left click to mark foreground">
+                                ● Include
+                            </button>
+                            <button id="bgMode" class="mode-btn bg" title="Right click marks background">
+                                ✕ Exclude
+                            </button>
+                        </div>
+                        <p class="mode-hint" id="modeHint">Left-click: include · Right-click: always exclude</p>
+
+                        <div id="scoreWrap" style="text-align:center"></div>
+
+                        <div class="action-strip">
+                            <button id="clearBtn" class="btn btn-danger" style="flex:1" disabled>Clear Points</button>
+                            <button id="extractBtn" class="btn btn-outline" style="flex:1" disabled>Save PNG</button>
+                        </div>
+
+                        <div class="instructions">
+                            <strong>How to use:</strong><br>
+                            1. Upload or choose a sample image<br>
+                            2. Wait for model to embed the image<br>
+                            3. Click on the object you want to segment<br>
+                            4. Add more clicks to refine the mask<br>
+                            5. Right-click to exclude areas
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:16px">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                            </svg>
+                            Sample Images
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                            </svg>
+                            Interactive Canvas
+                        </h2>
+                        <div class="canvas-wrap" id="canvasWrap">
+                            <canvas id="segCanvas"></canvas>
+                            <div id="canvasPlaceholder" class="canvas-placeholder">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                                </svg>
+                                <p>Upload an image to start clicking</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>Powered by <a href="https://huggingface.co/Xenova/slimsam-77-uniform" target="_blank">SlimSAM-77</a> &amp; <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a></p>
+            </footer>
+        </div>
+
+        <script type="module">
+            const workerCode = `
+                (function() {
+                    function openModelDB() {
+                        return new Promise((resolve, reject) => {
+                            const req = indexedDB.open('onnx-model-cache', 1);
+                            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                            req.onsuccess = e => resolve(e.target.result);
+                            req.onerror = e => reject(e.target.error);
+                        });
+                    }
+                    async function getFromDB(url) {
+                        try {
+                            const db = await openModelDB();
+                            return new Promise(resolve => {
+                                const req = db.transaction('models','readonly').objectStore('models').get(url);
+                                req.onsuccess = e => resolve(e.target.result || null);
+                                req.onerror = () => resolve(null);
+                            });
+                        } catch(e) { return null; }
+                    }
+                    function saveToDB(url, buffer) {
+                        openModelDB().then(db => {
+                            const tx = db.transaction('models','readwrite');
+                            tx.objectStore('models').put(buffer, url);
+                        }).catch(()=>{});
+                    }
+                    const _fetch = globalThis.fetch.bind(globalThis);
+                    globalThis.fetch = async function(input, init) {
+                        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+                        const isHF = url.indexOf('huggingface.co') !== -1;
+                        const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+                        if (isHF && isGet) {
+                            const cached = await getFromDB(url);
+                            if (cached) return new Response(cached, { status:200, headers:{'Content-Type':'application/octet-stream','Content-Length':''+cached.byteLength}});
+                            const response = await _fetch(input, init);
+                            if (response.ok) { const buffer = await response.clone().arrayBuffer(); saveToDB(url, buffer); }
+                            return response;
+                        }
+                        return _fetch(input, init);
+                    };
+                })();
+
+                let SamModel, AutoProcessor, RawImage, env;
+                let model = null, processor = null;
+                let currentRawImage = null, imageEmbeddings = null;
+
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    SamModel = T.SamModel; AutoProcessor = T.AutoProcessor;
+                    RawImage = T.RawImage; env = T.env;
+                    env.allowLocalModels = false;
+                }
+                const ready = init();
+                const MODEL_ID = "Xenova/slimsam-77-uniform";
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            let device = "wasm";
+                            try {
+                                if (self.navigator?.gpu) {
+                                    const adapter = await navigator.gpu.requestAdapter();
+                                    if (adapter) device = "webgpu";
+                                }
+                            } catch(err) {}
+                            self.postMessage({ id, type: "status", text: "Loading SlimSAM (" + device.toUpperCase() + ")..." });
+                            model = await SamModel.from_pretrained(MODEL_ID, {
+                                device, dtype: "fp32",
+                                progress_callback: (() => {
+                                    const fp = {};
+                                    return (p) => {
+                                        if (p.status === "progress" && p.file && p.loaded != null && p.total != null) {
+                                            fp[p.file] = { loaded: p.loaded, total: p.total };
+                                            const loaded = Object.values(fp).reduce((s, f) => s + f.loaded, 0);
+                                            const total  = Object.values(fp).reduce((s, f) => s + f.total,  0);
+                                            if (total > 0) self.postMessage({ id, type: "progress", percent: Math.round((loaded / total) * 100) });
+                                        }
+                                    };
+                                })()
+                            });
+                            processor = await AutoProcessor.from_pretrained(MODEL_ID);
+                            self.postMessage({ id, type: "loaded" });
+                        } catch(err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "embed") {
+                        try {
+                            self.postMessage({ id, type: "status", text: "Embedding image..." });
+                            currentRawImage = await RawImage.fromURL(e.data.imageUrl);
+                            const imageInputs = await processor(currentRawImage);
+                            imageEmbeddings = await model.get_image_embeddings(imageInputs);
+                            self.postMessage({
+                                id, type: "embedded",
+                                width: currentRawImage.width,
+                                height: currentRawImage.height
+                            });
+                        } catch(err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "segment") {
+                        try {
+                            const { points, labels } = e.data;
+                            const input_points = [points.map(p => [p.x, p.y])];
+                            const input_labels = [labels];
+
+                            const maskInputs = await processor(currentRawImage, { input_points, input_labels });
+                            const { pred_masks, iou_scores } = await model({
+                                ...maskInputs,
+                                ...imageEmbeddings
+                            });
+
+                            const masks = await processor.post_process_masks(
+                                pred_masks,
+                                maskInputs.original_sizes,
+                                maskInputs.reshaped_input_sizes
+                            );
+
+                            const scoresArr = Array.from(iou_scores.data);
+                            const bestIdx = scoresArr.indexOf(Math.max(...scoresArr));
+                            const bestScore = scoresArr[bestIdx];
+
+                            // masks[0] is for batch item 0; index into it by mask index
+                            const imageMasks = masks[0];
+                            const mask = imageMasks[bestIdx];
+                            const H = mask.dims[mask.dims.length - 2];
+                            const W = mask.dims[mask.dims.length - 1];
+                            const binary = new Uint8Array(H * W);
+                            for (let i = 0; i < binary.length; i++) {
+                                binary[i] = mask.data[i] > 0 ? 1 : 0;
+                            }
+                            self.postMessage({
+                                id, type: "mask",
+                                mask: binary.buffer, width: W, height: H,
+                                score: bestScore
+                            }, [binary.buffer]);
+                        } catch(err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+
+            const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+            let msgId = 0;
+            const pending = new Map();
+            function workerCall(msg, transfer = []) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id }, transfer);
+                });
+            }
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") { modelStatusText.textContent = e.data.text; return; }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            const SAMPLE_IMAGES = [
+                "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=400&q=80", // apple
+                "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80", // coffee cup
+                "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&q=80", // dog
+                "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&q=80", // person portrait
+                "https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=400&q=80", // bicycle
+                "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&q=80",   // sofa
+            ];
+
+            let modelReady = false, isEmbedded = false, isSegmenting = false;
+            let clickPoints = [], clickLabels = []; // {x,y} and 1/0
+            let currentImageUrl = null, originalImage = null;
+            let imgW = 0, imgH = 0;
+            let currentMask = null, maskW = 0, maskH = 0;
+            let fgMode = true; // true = foreground (include), false = background (exclude)
+
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressPercent = document.getElementById("progressPercent");
+            const status = document.getElementById("status");
+            const dropZone = document.getElementById("dropZone");
+            const imageInput = document.getElementById("imageInput");
+            const preview = document.getElementById("preview");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const segCanvas = document.getElementById("segCanvas");
+            const ctx = segCanvas.getContext("2d");
+            const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+            const fgModeBtn = document.getElementById("fgMode");
+            const bgModeBtn = document.getElementById("bgMode");
+            const modeHint = document.getElementById("modeHint");
+            const clearBtn = document.getElementById("clearBtn");
+            const extractBtn = document.getElementById("extractBtn");
+            const scoreWrap = document.getElementById("scoreWrap");
+
+            sampleGallery.innerHTML = SAMPLE_IMAGES.map((url, i) =>
+                `<div class="sample-item" data-index="${i}"><img src="${url}" alt="Sample ${i+1}" crossorigin="anonymous"></div>`
+            ).join("");
+
+            async function loadModel() {
+                progress.style.display = "block";
+                try {
+                    await workerCall({ type: "load" });
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "SlimSAM ready";
+                    progress.style.display = "none";
+                } catch(e) {
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+
+            fgModeBtn.addEventListener("click", () => {
+                fgMode = true;
+                fgModeBtn.classList.add("active");
+                bgModeBtn.classList.remove("active");
+            });
+            bgModeBtn.addEventListener("click", () => {
+                fgMode = false;
+                bgModeBtn.classList.add("active");
+                fgModeBtn.classList.remove("active");
+            });
+
+            dropZone.addEventListener("click", () => imageInput.click());
+            dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+            dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault(); dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/")) handleImageFile(file);
+            });
+            imageInput.addEventListener("change", (e) => { if (e.target.files[0]) handleImageFile(e.target.files[0]); });
+
+            function handleImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = "block";
+                    setImage(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+
+            sampleGallery.addEventListener("click", (e) => {
+                const item = e.target.closest(".sample-item");
+                if (item) {
+                    const url = SAMPLE_IMAGES[item.dataset.index];
+                    preview.src = url;
+                    preview.style.display = "block";
+                    setImage(url);
+                }
+            });
+
+            async function setImage(url) {
+                if (!modelReady) return;
+                currentImageUrl = url;
+                isEmbedded = false;
+                clickPoints = []; clickLabels = [];
+                currentMask = null;
+                scoreWrap.innerHTML = "";
+                clearBtn.disabled = true;
+                extractBtn.disabled = true;
+                status.textContent = "Loading image...";
+
+                originalImage = new Image();
+                originalImage.crossOrigin = "anonymous";
+                originalImage.onload = async () => {
+                    segCanvas.width = originalImage.naturalWidth;
+                    segCanvas.height = originalImage.naturalHeight;
+                    segCanvas.style.display = "block";
+                    canvasPlaceholder.style.display = "none";
+                    ctx.drawImage(originalImage, 0, 0);
+
+                    status.textContent = "Embedding image (one-time)...";
+                    try {
+                        const result = await workerCall({ type: "embed", imageUrl: currentImageUrl });
+                        imgW = result.width;
+                        imgH = result.height;
+                        isEmbedded = true;
+                        status.textContent = "Ready — click on the image to segment objects.";
+                        clearBtn.disabled = false;
+                    } catch(err) {
+                        status.textContent = "Embedding failed: " + err.message;
+                    }
+                };
+                originalImage.onerror = () => { status.textContent = "Failed to load image."; };
+                originalImage.src = url;
+            }
+
+            segCanvas.addEventListener("click", (e) => handleCanvasClick(e, true));
+            segCanvas.addEventListener("contextmenu", (e) => { e.preventDefault(); handleCanvasClick(e, false); });
+
+            async function handleCanvasClick(event, isFg) {
+                if (!isEmbedded || isSegmenting) return;
+                const rect = segCanvas.getBoundingClientRect();
+                const scaleX = segCanvas.width / rect.width;
+                const scaleY = segCanvas.height / rect.height;
+                const cx = (event.clientX - rect.left) * scaleX;
+                const cy = (event.clientY - rect.top) * scaleY;
+
+                // Map canvas coords to original image coords
+                const px = Math.round(cx * imgW / segCanvas.width);
+                const py = Math.round(cy * imgH / segCanvas.height);
+
+                // Override mode: right-click always = exclude, left-click uses toggle mode
+                const label = event.type === "contextmenu" ? 0 : (fgMode ? 1 : 0);
+
+                clickPoints.push({ x: px, y: py });
+                clickLabels.push(label);
+                clearBtn.disabled = false;
+
+                await runSegmentation();
+            }
+
+            async function runSegmentation() {
+                if (!isEmbedded || clickPoints.length === 0) return;
+                isSegmenting = true;
+                status.textContent = "Segmenting...";
+
+                try {
+                    const result = await workerCall({
+                        type: "segment",
+                        points: clickPoints,
+                        labels: clickLabels
+                    });
+                    currentMask = new Uint8Array(result.mask);
+                    maskW = result.width;
+                    maskH = result.height;
+                    renderMask(result.score);
+                    extractBtn.disabled = false;
+                    const pct = Math.round(result.score * 100);
+                    const cls = pct >= 80 ? "good" : pct >= 60 ? "ok" : "poor";
+                    scoreWrap.innerHTML = `<span class="score-badge ${cls}">IOU Score: ${pct}%</span>`;
+                    status.textContent = `Done. ${clickPoints.length} point${clickPoints.length > 1 ? 's' : ''}. Click to refine.`;
+                } catch(err) {
+                    status.textContent = "Error: " + err.message;
+                } finally {
+                    isSegmenting = false;
+                }
+            }
+
+            function renderMask(score) {
+                ctx.drawImage(originalImage, 0, 0, segCanvas.width, segCanvas.height);
+
+                if (currentMask) {
+                    const W = segCanvas.width, H = segCanvas.height;
+                    const imageData = ctx.getImageData(0, 0, W, H);
+                    const pixels = imageData.data;
+
+                    // Dim non-mask areas
+                    for (let y = 0; y < H; y++) {
+                        for (let x = 0; x < W; x++) {
+                            const mx = Math.round(x * maskW / W);
+                            const my = Math.round(y * maskH / H);
+                            const maskVal = currentMask[my * maskW + mx];
+                            const idx = (y * W + x) * 4;
+                            if (!maskVal) {
+                                pixels[idx]   = pixels[idx]   * 0.3;
+                                pixels[idx+1] = pixels[idx+1] * 0.3;
+                                pixels[idx+2] = pixels[idx+2] * 0.3;
+                            } else {
+                                // Tint mask cyan
+                                pixels[idx]   = pixels[idx]   * 0.6 + 0 * 0.4;
+                                pixels[idx+1] = pixels[idx+1] * 0.6 + 200 * 0.4;
+                                pixels[idx+2] = pixels[idx+2] * 0.6 + 255 * 0.4;
+                            }
+                        }
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                }
+
+                // Draw mask border
+                if (currentMask) drawMaskOutline();
+
+                // Draw click points
+                for (let i = 0; i < clickPoints.length; i++) {
+                    const p = clickPoints[i];
+                    const isFg = clickLabels[i] === 1;
+                    const cx = p.x * segCanvas.width / imgW;
+                    const cy = p.y * segCanvas.height / imgH;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = isFg ? "#22c55e" : "#ef4444";
+                    ctx.fill();
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 11px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(isFg ? "+" : "−", cx, cy);
+                }
+            }
+
+            function drawMaskOutline() {
+                // Simple edge detection on the mask to draw an outline
+                const W = segCanvas.width, H = segCanvas.height;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+                ctx.lineWidth = 1.5;
+                for (let y = 1; y < maskH - 1; y += 2) {
+                    for (let x = 1; x < maskW - 1; x += 2) {
+                        const c = currentMask[y * maskW + x];
+                        const hasEdge = (
+                            currentMask[(y-1)*maskW+x] !== c ||
+                            currentMask[(y+1)*maskW+x] !== c ||
+                            currentMask[y*maskW+(x-1)] !== c ||
+                            currentMask[y*maskW+(x+1)] !== c
+                        );
+                        if (hasEdge && c) {
+                            const cx = x * W / maskW;
+                            const cy = y * H / maskH;
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 1, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            clearBtn.addEventListener("click", () => {
+                clickPoints = []; clickLabels = [];
+                currentMask = null;
+                scoreWrap.innerHTML = "";
+                extractBtn.disabled = true;
+                if (originalImage) ctx.drawImage(originalImage, 0, 0, segCanvas.width, segCanvas.height);
+                status.textContent = isEmbedded ? "Ready — click on the image to segment objects." : "";
+            });
+
+            extractBtn.addEventListener("click", () => {
+                if (!currentMask || !originalImage) return;
+                const W = segCanvas.width, H = segCanvas.height;
+                const offscreen = document.createElement("canvas");
+                offscreen.width = W; offscreen.height = H;
+                const octx = offscreen.getContext("2d");
+                octx.drawImage(originalImage, 0, 0, W, H);
+                const imageData = octx.getImageData(0, 0, W, H);
+                const pixels = imageData.data;
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        const mx = Math.round(x * maskW / W);
+                        const my = Math.round(y * maskH / H);
+                        const inMask = currentMask[my * maskW + mx];
+                        const idx = (y * W + x) * 4;
+                        pixels[idx + 3] = inMask ? 255 : 0;
+                    }
+                }
+                octx.putImageData(imageData, 0, 0);
+                const a = document.createElement("a");
+                a.href = offscreen.toDataURL("image/png");
+                a.download = `segclick_${Date.now()}.png`;
+                a.click();
+            });
+        </script>
+    </body>
+</html>

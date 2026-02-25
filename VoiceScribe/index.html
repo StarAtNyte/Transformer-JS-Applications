@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>VoiceScribe - Speech to Text</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+            }
+            .container { max-width: 800px; margin: 0 auto; }
+            header { text-align: center; margin-bottom: 32px; }
+            h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+            .subtitle { color: #666; font-size: 1rem; }
+            .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+            .model-status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; font-size: 0.88rem; font-weight: 500; }
+            .model-status.loaded { background: #f0fdf4; color: #166534; }
+            .model-status.loading { background: #fef3c7; color: #92400e; }
+            .model-status.error { background: #fef2f2; color: #991b1b; }
+            .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+            .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+            .model-status.error .dot { background: #ef4444; }
+            @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+            .progress { display: none; margin-bottom: 16px; }
+            .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+            .progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6); width: 0%; transition: width 0.3s; }
+            .progress-text { font-size: 0.75rem; color: #999; margin-top: 4px; display: flex; justify-content: space-between; }
+
+            /* Mic UI */
+            .mic-section { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 32px 0; }
+            .mic-ring {
+                position: relative; width: 120px; height: 120px;
+                display: flex; align-items: center; justify-content: center;
+            }
+            .mic-ring::before {
+                content: ''; position: absolute; inset: 0; border-radius: 50%;
+                border: 3px solid #e8e8e8; transition: all 0.3s;
+            }
+            .mic-ring.recording::before {
+                border-color: #ef4444; animation: ringPulse 1.2s ease-in-out infinite;
+            }
+            @keyframes ringPulse { 0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:0.6} }
+            .mic-btn {
+                width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+                background: #6366f1; color: white; transition: all 0.25s;
+                box-shadow: 0 4px 16px rgba(99,102,241,0.35);
+            }
+            .mic-btn:hover:not(:disabled) { background: #4f46e5; transform: scale(1.05); }
+            .mic-btn:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+            .mic-btn.recording { background: #ef4444; box-shadow: 0 4px 20px rgba(239,68,68,0.45); }
+            .mic-btn svg { width: 36px; height: 36px; }
+            .mic-label { font-size: 0.9rem; color: #888; font-weight: 500; }
+            .mic-label.recording { color: #ef4444; }
+
+            /* Waveform */
+            .waveform-wrap { width: 100%; height: 64px; background: #f8f9fa; border-radius: 8px; overflow: hidden; }
+            #waveformCanvas { width: 100%; height: 100%; display: block; }
+
+            /* Timer */
+            .timer { font-size: 1.4rem; font-weight: 600; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+            .timer.recording { color: #ef4444; }
+
+            /* Mode toggle */
+            .mode-row { display: flex; gap: 8px; justify-content: center; }
+            .mode-btn {
+                padding: 7px 18px; border: 1.5px solid #e8e8e8; border-radius: 20px;
+                background: white; font-size: 0.82rem; cursor: pointer; color: #666;
+                transition: all 0.15s; font-weight: 500;
+            }
+            .mode-btn.active { background: #6366f1; border-color: #6366f1; color: white; }
+            .mode-hint { font-size: 0.78rem; color: #aaa; text-align: center; margin-top: -8px; }
+
+            /* Transcript */
+            .transcript-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+            .transcript-header h2 { font-size: 1rem; font-weight: 600; }
+            .btn-sm {
+                padding: 5px 12px; border: 1px solid #e8e8e8; border-radius: 6px; background: white;
+                font-size: 0.78rem; cursor: pointer; color: #666; transition: all 0.15s;
+            }
+            .btn-sm:hover { border-color: #6366f1; color: #6366f1; }
+            #transcript {
+                min-height: 160px; max-height: 400px; overflow-y: auto;
+                font-size: 0.95rem; line-height: 1.7; color: #333;
+                padding: 4px; border-radius: 6px;
+            }
+            .transcript-empty { color: #bbb; font-style: italic; font-size: 0.9rem; }
+            .transcript-segment { display: inline; }
+            .transcript-segment.new { color: #6366f1; animation: fadeToBlack 3s forwards; }
+            @keyframes fadeToBlack { from{color:#6366f1}to{color:#333} }
+            .processing-indicator { color: #888; font-style: italic; }
+            .segment-time { font-size: 0.7rem; color: #bbb; margin: 0 4px; }
+
+            footer { text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem; }
+            footer a { color: #6366f1; text-decoration: none; }
+            footer a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>VoiceScribe</h1>
+                <p class="subtitle">Real-time speech transcription powered by Moonshine — runs entirely in your browser</p>
+            </header>
+
+            <div class="card">
+                <div id="modelStatus" class="model-status loading">
+                    <span class="dot"></span>
+                    <span id="modelStatusText">Loading Moonshine ASR...</span>
+                </div>
+                <div id="progress" class="progress">
+                    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+                    <div class="progress-text">
+                        <span>Downloading model...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                </div>
+
+                <div class="mic-section">
+                    <div class="timer" id="timer">0:00</div>
+
+                    <div id="micRing" class="mic-ring">
+                        <button id="micBtn" class="mic-btn" disabled>
+                            <svg fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 1a4 4 0 00-4 4v6a4 4 0 008 0V5a4 4 0 00-4-4zm-1 17.93V21h-2v2h6v-2h-2v-2.07A8.001 8.001 0 0020 11h-2a6 6 0 01-12 0H4a8.001 8.001 0 007 6.93z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <span id="micLabel" class="mic-label">Click to start recording</span>
+
+                    <div class="mode-row">
+                        <button class="mode-btn active" id="modeToggle" data-mode="click">Click to Toggle</button>
+                        <button class="mode-btn" id="modePressHold" data-mode="hold">Press &amp; Hold</button>
+                    </div>
+                    <p class="mode-hint" id="modeHint">Click mic to start / stop recording</p>
+
+                    <div class="waveform-wrap">
+                        <canvas id="waveformCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="transcript-header">
+                    <h2>Transcript</h2>
+                    <button id="clearBtn" class="btn-sm">Clear</button>
+                </div>
+                <div id="transcript"><span class="transcript-empty">Your speech will appear here...</span></div>
+            </div>
+
+            <footer>
+                <p>Powered by <a href="https://huggingface.co/onnx-community/moonshine-tiny-ONNX" target="_blank">Moonshine-tiny-ONNX</a> &amp; <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a></p>
+            </footer>
+        </div>
+
+        <script type="module">
+            const workerCode = `
+                (function() {
+                    function openModelDB() {
+                        return new Promise((resolve, reject) => {
+                            const req = indexedDB.open('onnx-model-cache', 1);
+                            req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                            req.onsuccess = e => resolve(e.target.result);
+                            req.onerror = e => reject(e.target.error);
+                        });
+                    }
+                    async function getFromDB(url) {
+                        try {
+                            const db = await openModelDB();
+                            return new Promise(resolve => {
+                                const req = db.transaction('models','readonly').objectStore('models').get(url);
+                                req.onsuccess = e => resolve(e.target.result || null);
+                                req.onerror = () => resolve(null);
+                            });
+                        } catch(e) { return null; }
+                    }
+                    function saveToDB(url, buffer) {
+                        openModelDB().then(db => {
+                            const tx = db.transaction('models','readwrite');
+                            tx.objectStore('models').put(buffer, url);
+                        }).catch(()=>{});
+                    }
+                    const _fetch = globalThis.fetch.bind(globalThis);
+                    globalThis.fetch = async function(input, init) {
+                        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+                        const isHF = url.indexOf('huggingface.co') !== -1;
+                        const isGet = !init || !init.method || init.method.toUpperCase() === 'GET';
+                        if (isHF && isGet) {
+                            const cached = await getFromDB(url);
+                            if (cached) return new Response(cached, { status:200, headers:{'Content-Type':'application/octet-stream','Content-Length':''+cached.byteLength}});
+                            const response = await _fetch(input, init);
+                            if (response.ok) { const buffer = await response.clone().arrayBuffer(); saveToDB(url, buffer); }
+                            return response;
+                        }
+                        return _fetch(input, init);
+                    };
+                })();
+
+                let pipeline, env, transcriber = null;
+                async function init() {
+                    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+                    pipeline = T.pipeline; env = T.env;
+                    env.allowLocalModels = false;
+                }
+                const ready = init();
+                const MODEL_ID = "onnx-community/moonshine-tiny-ONNX";
+
+                self.onmessage = async (e) => {
+                    await ready;
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            let device = "wasm", dtype = "fp32";
+                            try {
+                                if (self.navigator?.gpu) {
+                                    const adapter = await navigator.gpu.requestAdapter();
+                                    if (adapter) { device = "webgpu"; }
+                                }
+                            } catch(err) {}
+                            self.postMessage({ id, type: "status", text: "Loading Moonshine (" + device.toUpperCase() + ")..." });
+                            transcriber = await pipeline("automatic-speech-recognition", MODEL_ID, {
+                                device, dtype,
+                                progress_callback: (() => {
+                                    const fp = {};
+                                    return (p) => {
+                                        if (p.status === "progress" && p.file && p.loaded != null && p.total != null) {
+                                            fp[p.file] = { loaded: p.loaded, total: p.total };
+                                            const loaded = Object.values(fp).reduce((s, f) => s + f.loaded, 0);
+                                            const total  = Object.values(fp).reduce((s, f) => s + f.total,  0);
+                                            if (total > 0) self.postMessage({ id, type: "progress", percent: Math.round((loaded / total) * 100) });
+                                        }
+                                    };
+                                })()
+                            });
+                            self.postMessage({ id, type: "loaded" });
+                        } catch(err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "transcribe") {
+                        try {
+                            const audio = new Float32Array(e.data.audio);
+                            const result = await transcriber(audio, { sampling_rate: 16000 });
+                            self.postMessage({ id, type: "transcript", text: result.text });
+                        } catch(err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+
+            const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+            let msgId = 0;
+            const pending = new Map();
+            function workerCall(msg, transfer = []) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id }, transfer);
+                });
+            }
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") { modelStatusText.textContent = e.data.text; return; }
+                if (type === "progress") {
+                    progressFill.style.width = `${e.data.percent}%`;
+                    progressPercent.textContent = `${e.data.percent}%`;
+                    return;
+                }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            let modelReady = false, isRecording = false, mediaRecorder = null;
+            let audioChunks = [], analyser = null, animFrame = null;
+            let timerInterval = null, recordingStart = 0;
+            let recordMode = "click"; // "click" or "hold"
+
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressPercent = document.getElementById("progressPercent");
+            const micBtn = document.getElementById("micBtn");
+            const micRing = document.getElementById("micRing");
+            const micLabel = document.getElementById("micLabel");
+            const transcript = document.getElementById("transcript");
+            const clearBtn = document.getElementById("clearBtn");
+            const waveCanvas = document.getElementById("waveformCanvas");
+            const wctx = waveCanvas.getContext("2d");
+            const timer = document.getElementById("timer");
+            const modeToggle = document.getElementById("modeToggle");
+            const modePressHold = document.getElementById("modePressHold");
+            const modeHint = document.getElementById("modeHint");
+
+            async function loadModel() {
+                progress.style.display = "block";
+                try {
+                    await workerCall({ type: "load" });
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "Moonshine ready";
+                    progress.style.display = "none";
+                    micBtn.disabled = false;
+                } catch(e) {
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+
+            // Mode switching
+            [modeToggle, modePressHold].forEach(btn => {
+                btn.addEventListener("click", () => {
+                    if (isRecording) return;
+                    recordMode = btn.dataset.mode;
+                    modeToggle.classList.toggle("active", recordMode === "click");
+                    modePressHold.classList.toggle("active", recordMode === "hold");
+                    modeHint.textContent = recordMode === "click"
+                        ? "Click mic to start / stop recording"
+                        : "Hold mic button to record, release to transcribe";
+                    setupMicEvents();
+                });
+            });
+
+            function setupMicEvents() {
+                micBtn.onmousedown = micBtn.ontouchstart = null;
+                micBtn.onmouseup = micBtn.ontouchend = null;
+                micBtn.onclick = null;
+
+                if (recordMode === "click") {
+                    micBtn.addEventListener("click", toggleRecording);
+                } else {
+                    micBtn.addEventListener("mousedown", startRecording);
+                    micBtn.addEventListener("mouseup", stopAndTranscribe);
+                    micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); startRecording(); });
+                    micBtn.addEventListener("touchend", (e) => { e.preventDefault(); stopAndTranscribe(); });
+                }
+            }
+            setupMicEvents();
+
+            function toggleRecording() {
+                if (!modelReady) return;
+                isRecording ? stopAndTranscribe() : startRecording();
+            }
+
+            async function startRecording() {
+                if (!modelReady || isRecording) return;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 });
+                    const audioCtx = new AudioContext({ sampleRate: 16000 });
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder.start();
+                    isRecording = true;
+
+                    micBtn.classList.add("recording");
+                    micRing.classList.add("recording");
+                    micLabel.textContent = "Recording...";
+                    micLabel.classList.add("recording");
+
+                    recordingStart = Date.now();
+                    timerInterval = setInterval(() => {
+                        const s = Math.floor((Date.now() - recordingStart) / 1000);
+                        timer.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+                        timer.classList.add("recording");
+                    }, 200);
+
+                    drawWaveform();
+                } catch(err) {
+                    alert("Microphone access denied: " + err.message);
+                }
+            }
+
+            async function stopAndTranscribe() {
+                if (!isRecording || !mediaRecorder) return;
+                isRecording = false;
+                clearInterval(timerInterval);
+                cancelAnimationFrame(animFrame);
+
+                micBtn.classList.remove("recording");
+                micRing.classList.remove("recording");
+                micLabel.textContent = "Transcribing...";
+                micLabel.classList.remove("recording");
+                timer.classList.remove("recording");
+                micBtn.disabled = true;
+                drawSilentWave();
+
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+                mediaRecorder.onstop = async () => {
+                    try {
+                        const blob = new Blob(audioChunks, { type: "audio/webm" });
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const audioCtx = new AudioContext({ sampleRate: 16000 });
+                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                        const audioData = audioBuffer.getChannelData(0);
+                        const copy = new Float32Array(audioData);
+                        const result = await workerCall({ type: "transcribe", audio: copy.buffer }, [copy.buffer]);
+                        appendTranscript(result.text.trim());
+                    } catch(err) {
+                        appendTranscript("[Error: " + err.message + "]");
+                    } finally {
+                        micLabel.textContent = recordMode === "click" ? "Click to start recording" : "Hold to record";
+                        micBtn.disabled = false;
+                        timer.textContent = "0:00";
+                    }
+                };
+            }
+
+            function appendTranscript(text) {
+                if (!text) return;
+                const isEmpty = transcript.querySelector(".transcript-empty");
+                if (isEmpty) transcript.innerHTML = "";
+                const span = document.createElement("span");
+                span.className = "transcript-segment new";
+                span.textContent = (transcript.textContent.length > 0 ? " " : "") + text;
+                transcript.appendChild(span);
+                transcript.scrollTop = transcript.scrollHeight;
+            }
+
+            clearBtn.addEventListener("click", () => {
+                transcript.innerHTML = '<span class="transcript-empty">Your speech will appear here...</span>';
+                timer.textContent = "0:00";
+            });
+
+            function drawWaveform() {
+                if (!isRecording || !analyser) return;
+                animFrame = requestAnimationFrame(drawWaveform);
+                const bufLen = analyser.frequencyBinCount;
+                const data = new Uint8Array(bufLen);
+                analyser.getByteTimeDomainData(data);
+                const W = waveCanvas.width = waveCanvas.clientWidth;
+                const H = waveCanvas.height = waveCanvas.clientHeight;
+                wctx.clearRect(0, 0, W, H);
+                wctx.lineWidth = 2;
+                wctx.strokeStyle = "#ef4444";
+                wctx.beginPath();
+                const step = bufLen / W;
+                for (let x = 0; x < W; x++) {
+                    const v = data[Math.floor(x * step)] / 128.0;
+                    const y = v * H / 2;
+                    x === 0 ? wctx.moveTo(x, y) : wctx.lineTo(x, y);
+                }
+                wctx.stroke();
+            }
+
+            function drawSilentWave() {
+                const W = waveCanvas.width = waveCanvas.clientWidth;
+                const H = waveCanvas.height = waveCanvas.clientHeight;
+                wctx.clearRect(0, 0, W, H);
+                wctx.lineWidth = 2;
+                wctx.strokeStyle = "#ddd";
+                wctx.beginPath();
+                wctx.moveTo(0, H / 2);
+                wctx.lineTo(W, H / 2);
+                wctx.stroke();
+            }
+            drawSilentWave();
+        </script>
+    </body>
+</html>

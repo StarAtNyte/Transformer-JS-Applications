@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StyleForge - Fast Neural Style Transfer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 32px; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .grid { display: grid; gap: 24px; }
+        @media (min-width: 900px) {
+            .grid { grid-template-columns: 320px 1fr; }
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .icon { width: 20px; height: 20px; }
+        .dropzone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: #e11d48; }
+        .dropzone p { color: #666; font-size: 0.9rem; }
+        .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+        #preview {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            margin: 12px auto 0;
+            display: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 12px;
+        }
+        .btn-primary { background: #e11d48; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #be123c; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+        .progress { margin-top: 12px; display: none; }
+        .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e11d48, #f43f5e);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .model-status.loaded { background: #f0fdf4; }
+        .model-status.loading { background: #fef3c7; }
+        .model-status.error { background: #fef2f2; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .model-status.loading .dot { background: #f59e0b; animation: pulse 1s infinite; }
+        .model-status.error .dot { background: #ef4444; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Style picker */
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+        .style-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 3px solid transparent;
+        }
+        .style-item:hover { transform: scale(1.05); }
+        .style-item.active { border-color: #e11d48; }
+        .style-item img { width: 100%; height: 100%; object-fit: cover; }
+        .style-item .style-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.65);
+            color: white;
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-align: center;
+            padding: 2px 4px;
+            text-transform: capitalize;
+        }
+
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .sample-item {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .sample-item:hover { transform: scale(1.05); }
+        .sample-item img { width: 100%; height: 100%; object-fit: cover; }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-group label {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #e11d48;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .scale-value { font-size: 0.8rem; color: #888; min-width: 32px; }
+
+        .canvas-wrap {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            flex-direction: column;
+        }
+        .canvas-pair {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+        .canvas-pair canvas {
+            display: none;
+            border-radius: 6px;
+            max-width: 100%;
+            height: auto;
+        }
+        .canvas-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-align: center;
+            margin-top: 4px;
+        }
+        .canvas-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        .canvas-placeholder {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 48px;
+        }
+        .canvas-placeholder svg {
+            width: 64px; height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .estimation-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #e11d48;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .canvas-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-secondary:disabled { background: #f1f5f9; color: #999; cursor: not-allowed; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .modal-image {
+            max-width: 100%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
+        .modal-image.zoomed {
+            cursor: zoom-out;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        .modal-controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px; right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .modal-close:hover { opacity: 0.7; }
+        .hidden { display: none !important; }
+        .result-info {
+            font-size: 0.78rem;
+            color: #888;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.4;
+            min-height: 1.4em;
+        }
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+        footer a { color: #e11d48; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>StyleForge</h1>
+            <p class="subtitle">Fast neural style transfer — runs entirely in your browser</p>
+        </header>
+
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div id="modelStatus" class="model-status loading">
+                        <span class="dot"></span>
+                        <span id="modelStatusText">Select a style to begin</span>
+                    </div>
+
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                        </svg>
+                        Choose Style
+                    </h2>
+                    <div id="styleGrid" class="style-grid"></div>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Upload Image
+                    </h2>
+
+                    <div id="dropZone" class="dropzone">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <p>Drop image here or click</p>
+                        <p class="hint">PNG, JPG, WebP</p>
+                        <img id="preview" alt="Preview">
+                    </div>
+
+                    <button id="transferBtn" class="btn btn-primary" disabled>Apply Style</button>
+
+                    <div id="status" class="status"></div>
+                    <div id="progress" class="progress">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressLabel">Downloading model...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px">
+                    <h2>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                        </svg>
+                        Sample Images
+                    </h2>
+                    <div id="sampleGallery" class="sample-grid"></div>
+                </div>
+            </div>
+
+            <div class="main">
+                <div class="card">
+                    <h2 style="margin-bottom: 16px">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                        Result
+                    </h2>
+
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <label>Scale:</label>
+                            <input id="scaleSlider" type="range" min="0.25" max="2" step="0.25" value="1">
+                            <span id="scaleValue" class="scale-value">1.00x</span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrap">
+                        <div id="transferSpinner" class="estimation-spinner">
+                            <div class="spinner"></div>
+                            <p>Applying style transfer...</p>
+                        </div>
+                        <div id="canvasPair" class="canvas-pair">
+                            <div class="canvas-col">
+                                <canvas id="origCanvas"></canvas>
+                                <span class="canvas-label">Original</span>
+                            </div>
+                            <div class="canvas-col">
+                                <canvas id="styledCanvas"></canvas>
+                                <span class="canvas-label">Stylized</span>
+                            </div>
+                        </div>
+                        <div id="canvasPlaceholder" class="canvas-placeholder">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                            </svg>
+                            <p>Choose a style, upload an image, then click "Apply Style"</p>
+                        </div>
+                    </div>
+
+                    <div id="canvasActions" class="canvas-actions hidden">
+                        <button id="downloadOrigBtn" class="btn-secondary">Download Original</button>
+                        <button id="downloadStyledBtn" class="btn-secondary">Download Stylized</button>
+                        <button id="viewOrigBtn" class="btn-secondary">View Original</button>
+                        <button id="viewStyledBtn" class="btn-secondary">View Stylized</button>
+                    </div>
+                    <p id="resultInfo" class="result-info"></p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Powered by
+                <a href="https://github.com/onnx/models" target="_blank">ONNX Model Zoo</a>
+                &
+                <a href="https://onnxruntime.ai/" target="_blank">ONNX Runtime Web</a>
+                &mdash;
+                based on
+                <a href="https://arxiv.org/abs/1603.08155" target="_blank">Johnson et al.</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <img id="modalImage" class="modal-image" alt="Full size image">
+            <div class="modal-controls">
+                <button id="modalDownloadBtn" class="btn-secondary">Download</button>
+                <button id="modalCloseBtn" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const STYLES = [
+            { id: 'mosaic',         name: 'Mosaic',         file: 'mosaic-9.onnx' },
+            { id: 'candy',          name: 'Candy',          file: 'candy-9.onnx' },
+            { id: 'rain-princess',  name: 'Rain Princess',  file: 'rain-princess-9.onnx' },
+            { id: 'udnie',          name: 'Udnie',          file: 'udnie-9.onnx' },
+            { id: 'pointilism',     name: 'Pointilism',     file: 'pointilism-9.onnx' },
+        ];
+
+        const MODEL_BASE = 'https://huggingface.co/onnxmodelzoo/legacy_models/resolve/main/validated/vision/style_transfer/fast_neural_style/model/';
+
+        const SAMPLE_IMAGES = [
+            'examples/cat.jpg',
+            'examples/city.jpg',
+            'examples/flowers.jpg',
+            'examples/landscape.jpg',
+            'examples/portrait.jpg',
+            'examples/bridge.jpg',
+        ];
+
+        // ── Web Worker (inline) ──
+        const workerCode = `
+            const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+            const MODEL_BASE = '${MODEL_BASE}';
+
+            async function openModelDB() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open('onnx-model-cache', 1);
+                    req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                    req.onsuccess = e => resolve(e.target.result);
+                    req.onerror = e => reject(e.target.error);
+                });
+            }
+            async function getCachedModel(key) {
+                try {
+                    const db = await openModelDB();
+                    return new Promise(resolve => {
+                        const req = db.transaction('models', 'readonly').objectStore('models').get(key);
+                        req.onsuccess = e => resolve(e.target.result || null);
+                        req.onerror = () => resolve(null);
+                    });
+                } catch(e) { return null; }
+            }
+            async function cacheModel(key, buffer) {
+                try {
+                    const db = await openModelDB();
+                    await new Promise(resolve => {
+                        const tx = db.transaction('models', 'readwrite');
+                        tx.objectStore('models').put(buffer, key);
+                        tx.oncomplete = resolve;
+                        tx.onerror = resolve;
+                    });
+                } catch(e) {}
+            }
+
+            let sessions = {};   // keyed by style file name
+
+            importScripts(ORT_CDN + 'ort.min.js');
+            ort.env.wasm.wasmPaths = ORT_CDN;
+
+            self.onmessage = async (e) => {
+                const { type, id } = e.data;
+
+                if (type === 'load') {
+                    try {
+                        const file = e.data.file;
+                        const url = MODEL_BASE + file;
+
+                        if (sessions[file]) {
+                            self.postMessage({ id, type: 'loaded' });
+                            return;
+                        }
+
+                        let modelBuffer = await getCachedModel(url);
+                        if (modelBuffer) {
+                            self.postMessage({ id, type: 'status', text: 'Loading model from cache...' });
+                        } else {
+                            self.postMessage({ id, type: 'status', text: 'Downloading model (~6.7 MB)...' });
+                            const resp = await fetch(url);
+                            if (!resp.ok) throw new Error('Failed to fetch model: ' + resp.status);
+                            const total = parseInt(resp.headers.get('content-length') || '0');
+                            const reader = resp.body.getReader();
+                            const chunks = [];
+                            let received = 0;
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                chunks.push(value);
+                                received += value.length;
+                                if (total > 0) {
+                                    self.postMessage({ id, type: 'progress', percent: Math.round(received / total * 100) });
+                                }
+                            }
+                            const buf = new Uint8Array(received);
+                            let offset = 0;
+                            for (const chunk of chunks) { buf.set(chunk, offset); offset += chunk.length; }
+                            modelBuffer = buf.buffer;
+                            await cacheModel(url, modelBuffer);
+                        }
+                        self.postMessage({ id, type: 'status', text: 'Initializing model...' });
+                        sessions[file] = await ort.InferenceSession.create(modelBuffer, {
+                            executionProviders: ['wasm'],
+                        });
+                        self.postMessage({ id, type: 'loaded' });
+                    } catch (err) {
+                        self.postMessage({ id, type: 'error', message: err.message });
+                    }
+                    return;
+                }
+
+                if (type === 'transfer') {
+                    try {
+                        const { pixels: pixBuf, width, height, file } = e.data;
+                        const session = sessions[file];
+                        if (!session) throw new Error('Model not loaded');
+
+                        const pixels = new Uint8Array(pixBuf);
+                        const SIZE = 224;
+                        const numPixels = SIZE * SIZE;
+
+                        // Resize to 224x224 using OffscreenCanvas
+                        const srcCanvas = new OffscreenCanvas(width, height);
+                        const srcCtx = srcCanvas.getContext('2d');
+                        const srcImg = new ImageData(new Uint8ClampedArray(pixBuf), width, height);
+                        srcCtx.putImageData(srcImg, 0, 0);
+
+                        const resCanvas = new OffscreenCanvas(SIZE, SIZE);
+                        const resCtx = resCanvas.getContext('2d');
+                        resCtx.drawImage(srcCanvas, 0, 0, SIZE, SIZE);
+                        const resized = resCtx.getImageData(0, 0, SIZE, SIZE);
+                        const rPix = resized.data;
+
+                        // Preprocess: RGBA → CHW float (raw 0-255 values, no normalization)
+                        const float32 = new Float32Array(3 * numPixels);
+                        for (let i = 0; i < numPixels; i++) {
+                            float32[i]                 = rPix[i * 4];       // R
+                            float32[numPixels + i]     = rPix[i * 4 + 1];   // G
+                            float32[2 * numPixels + i] = rPix[i * 4 + 2];   // B
+                        }
+
+                        const inputName = session.inputNames[0];
+                        const tensor = new ort.Tensor('float32', float32, [1, 3, SIZE, SIZE]);
+                        const output = await session.run({ [inputName]: tensor });
+
+                        const outTensor = output[session.outputNames[0]];
+                        const dims = outTensor.dims;
+                        const outC = dims[1];
+                        const outH = dims[2];
+                        const outW = dims[3];
+                        const outData = outTensor.data;
+
+                        // Postprocess: CHW float → RGBA uint8, clamped to 0-255
+                        const rgba = new Uint8Array(outH * outW * 4);
+                        const outPixels = outH * outW;
+                        for (let i = 0; i < outPixels; i++) {
+                            rgba[i * 4]     = Math.max(0, Math.min(255, Math.round(outData[i])));
+                            rgba[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(outData[outPixels + i])));
+                            rgba[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(outData[2 * outPixels + i])));
+                            rgba[i * 4 + 3] = 255;
+                        }
+
+                        self.postMessage(
+                            { id, type: 'result', data: rgba.buffer, width: outW, height: outH },
+                            [rgba.buffer]
+                        );
+                    } catch (err) {
+                        self.postMessage({ id, type: 'error', message: err.message });
+                    }
+                    return;
+                }
+            };
+        `;
+
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode])));
+
+        let msgId = 0;
+        const pending = new Map();
+
+        function workerCall(msg) {
+            return new Promise((resolve, reject) => {
+                const id = ++msgId;
+                pending.set(id, { resolve, reject });
+                if (msg.pixels) {
+                    worker.postMessage({ ...msg, id }, [msg.pixels]);
+                } else {
+                    worker.postMessage({ ...msg, id });
+                }
+            });
+        }
+
+        worker.onmessage = (e) => {
+            const { id, type } = e.data;
+            if (type === 'status') { modelStatusText.textContent = e.data.text; return; }
+            if (type === 'progress') {
+                progressFill.style.width = `${e.data.percent}%`;
+                progressPercent.textContent = `${e.data.percent}%`;
+                return;
+            }
+            const p = pending.get(id);
+            if (!p) return;
+            pending.delete(id);
+            if (type === 'error') p.reject(new Error(e.data.message));
+            else p.resolve(e.data);
+        };
+
+        // ── State ──
+        let selectedStyle = null;
+        let modelReady = false;
+        let currentImageUrl = null;
+        let imageScale = 1.0;
+
+        // ── DOM refs ──
+        const styleGrid      = document.getElementById('styleGrid');
+        const dropZone        = document.getElementById('dropZone');
+        const imageInput      = document.getElementById('imageInput');
+        const preview         = document.getElementById('preview');
+        const transferBtn     = document.getElementById('transferBtn');
+        const statusEl        = document.getElementById('status');
+        const progressEl      = document.getElementById('progress');
+        const progressFill    = document.getElementById('progressFill');
+        const progressLabel   = document.getElementById('progressLabel');
+        const progressPercent = document.getElementById('progressPercent');
+        const modelStatus     = document.getElementById('modelStatus');
+        const modelStatusText = document.getElementById('modelStatusText');
+        const sampleGallery   = document.getElementById('sampleGallery');
+        const origCanvas      = document.getElementById('origCanvas');
+        const styledCanvas    = document.getElementById('styledCanvas');
+        const origCtx         = origCanvas.getContext('2d');
+        const styledCtx       = styledCanvas.getContext('2d');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const scaleSlider     = document.getElementById('scaleSlider');
+        const scaleValueEl    = document.getElementById('scaleValue');
+        const resultInfo      = document.getElementById('resultInfo');
+        const canvasActions   = document.getElementById('canvasActions');
+        const transferSpinner = document.getElementById('transferSpinner');
+        const imageModal      = document.getElementById('imageModal');
+        const modalImage      = document.getElementById('modalImage');
+        const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+        const modalCloseBtn   = document.getElementById('modalCloseBtn');
+        const modalClose      = document.querySelector('.modal-close');
+
+        const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxPixels = isMobile ? 262144 : 589824;
+
+        // ── Style thumbnails ──
+        // Generate small canvas thumbnails representing each style
+        const STYLE_COLORS = {
+            'mosaic':        ['#1a5276','#f39c12','#e74c3c','#2ecc71','#8e44ad'],
+            'candy':         ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff8fab'],
+            'rain-princess': ['#2c3e50','#3498db','#1abc9c','#95a5a6','#7f8c8d'],
+            'udnie':         ['#d35400','#c0392b','#2980b9','#f1c40f','#8e44ad'],
+            'pointilism':    ['#e74c3c','#3498db','#f1c40f','#2ecc71','#9b59b6'],
+        };
+
+        styleGrid.innerHTML = STYLES.map((s, i) => {
+            const colors = STYLE_COLORS[s.id];
+            const stops = colors.map((c, j) => `${c} ${j * 25}%`).join(', ');
+            return `
+                <div class="style-item" data-index="${i}" title="${s.name}">
+                    <div style="width:100%;height:100%;background:linear-gradient(135deg, ${stops});"></div>
+                    <span class="style-name">${s.name}</span>
+                </div>
+            `;
+        }).join('');
+
+        styleGrid.addEventListener('click', async (e) => {
+            const item = e.target.closest('.style-item');
+            if (!item) return;
+            const idx = parseInt(item.dataset.index);
+            const style = STYLES[idx];
+
+            document.querySelectorAll('.style-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+
+            selectedStyle = style;
+            modelReady = false;
+            transferBtn.disabled = true;
+            modelStatus.className = 'model-status loading';
+            progressEl.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+
+            try {
+                await workerCall({ type: 'load', file: style.file });
+                modelReady = true;
+                modelStatus.className = 'model-status loaded';
+                modelStatusText.textContent = `${style.name} ready`;
+                progressEl.style.display = 'none';
+                if (currentImageUrl) transferBtn.disabled = false;
+            } catch (err) {
+                console.error('Model load error:', err);
+                modelStatus.className = 'model-status error';
+                modelStatusText.textContent = 'Failed to load model';
+                progressEl.style.display = 'none';
+            }
+        });
+
+        // ── Sample gallery ──
+        sampleGallery.innerHTML = SAMPLE_IMAGES.map((src, i) => `
+            <div class="sample-item" data-index="${i}">
+                <img src="${src}" alt="Sample ${i + 1}">
+            </div>
+        `).join('');
+
+        sampleGallery.addEventListener('click', (e) => {
+            const item = e.target.closest('.sample-item');
+            if (item) {
+                const src = SAMPLE_IMAGES[item.dataset.index];
+                preview.src = src;
+                preview.style.display = 'block';
+                currentImageUrl = src;
+                if (modelReady) transferBtn.disabled = false;
+            }
+        });
+
+        // ── Drop zone ──
+        dropZone.addEventListener('click', () => imageInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleImageFile(file);
+        });
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleImageFile(file);
+        });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                currentImageUrl = e.target.result;
+                if (modelReady) transferBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ── Controls ──
+        scaleSlider.addEventListener('input', (e) => {
+            imageScale = parseFloat(e.target.value);
+            scaleValueEl.textContent = `${imageScale.toFixed(2)}x`;
+        });
+
+        // ── Style transfer ──
+        transferBtn.addEventListener('click', async () => {
+            if (!modelReady || !currentImageUrl || !selectedStyle) return;
+            transferBtn.disabled = true;
+            statusEl.textContent = 'Preparing image...';
+            canvasActions.classList.add('hidden');
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+                try {
+                    let w = img.naturalWidth * imageScale;
+                    let h = img.naturalHeight * imageScale;
+                    const px = w * h;
+                    if (px > maxPixels) {
+                        const r = Math.sqrt(maxPixels / px);
+                        w *= r; h *= r;
+                    }
+                    const cw = Math.round(w);
+                    const ch = Math.round(h);
+
+                    origCanvas.width = cw;
+                    origCanvas.height = ch;
+                    origCtx.drawImage(img, 0, 0, cw, ch);
+                    origCanvas.style.display = 'block';
+                    canvasPlaceholder.style.display = 'none';
+                    transferSpinner.style.display = 'block';
+
+                    statusEl.textContent = `Applying ${selectedStyle.name} style...`;
+                    const t0 = performance.now();
+                    const pixelData = origCtx.getImageData(0, 0, cw, ch);
+
+                    const result = await workerCall({
+                        type: 'transfer',
+                        pixels: pixelData.data.buffer,
+                        width: cw,
+                        height: ch,
+                        file: selectedStyle.file,
+                    });
+
+                    // Model outputs 224x224; upscale to original dimensions
+                    const modelW = result.width;
+                    const modelH = result.height;
+                    const tmpCanvas = document.createElement('canvas');
+                    tmpCanvas.width = modelW;
+                    tmpCanvas.height = modelH;
+                    const tmpCtx = tmpCanvas.getContext('2d');
+                    const tmpImg = tmpCtx.createImageData(modelW, modelH);
+                    tmpImg.data.set(new Uint8Array(result.data));
+                    tmpCtx.putImageData(tmpImg, 0, 0);
+
+                    styledCanvas.width = cw;
+                    styledCanvas.height = ch;
+                    styledCtx.drawImage(tmpCanvas, 0, 0, cw, ch);
+                    styledCanvas.style.display = 'block';
+
+                    transferSpinner.style.display = 'none';
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    statusEl.textContent = `Done in ${elapsed}s`;
+                    resultInfo.textContent = `Output: ${cw}×${ch}px · Style: ${selectedStyle.name}`;
+                    canvasActions.classList.remove('hidden');
+                } catch (err) {
+                    statusEl.textContent = 'Error: ' + err.message;
+                    console.error(err);
+                    transferSpinner.style.display = 'none';
+                }
+                transferBtn.disabled = false;
+            };
+            img.onerror = () => {
+                statusEl.textContent = 'Failed to load image';
+                transferSpinner.style.display = 'none';
+                transferBtn.disabled = false;
+            };
+            img.src = currentImageUrl;
+        });
+
+        // ── Modal ──
+        function openModal(canvas, filename) {
+            const dataUrl = canvas.toDataURL('image/png');
+            modalImage.src = dataUrl;
+            modalImage.classList.remove('zoomed');
+            modalDownloadBtn.onclick = () => downloadImage(dataUrl, filename);
+            imageModal.classList.add('open');
+        }
+
+        function closeModal() { imageModal.classList.remove('open'); }
+
+        modalImage.addEventListener('click', () => modalImage.classList.toggle('zoomed'));
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalClose.addEventListener('click', closeModal);
+        imageModal.addEventListener('click', (e) => { if (e.target === imageModal) closeModal(); });
+
+        // ── Downloads ──
+        function downloadImage(dataUrl, filename) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        const ts = () => new Date().toISOString().slice(0, 10);
+        document.getElementById('downloadOrigBtn').addEventListener('click', () =>
+            downloadImage(origCanvas.toDataURL('image/png'), `original-${ts()}.png`));
+        document.getElementById('downloadStyledBtn').addEventListener('click', () =>
+            downloadImage(styledCanvas.toDataURL('image/png'), `styled-${selectedStyle?.id || 'output'}-${ts()}.png`));
+        document.getElementById('viewOrigBtn').addEventListener('click', () =>
+            openModal(origCanvas, 'original.png'));
+        document.getElementById('viewStyledBtn').addEventListener('click', () =>
+            openModal(styledCanvas, `styled-${selectedStyle?.id || 'output'}.png`));
+
+        // Auto-select first style
+        document.querySelector('.style-item')?.click();
+    </script>
+</body>
+</html>
