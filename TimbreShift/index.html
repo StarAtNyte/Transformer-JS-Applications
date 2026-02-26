@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>TimbreShift - Neural Timbre Transfer</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f8f9fa; color: #333; min-height: 100vh; padding: 24px;
+            }
+            .container { max-width: 1200px; margin: 0 auto; }
+            header { text-align: center; margin-bottom: 32px; }
+            h1 { font-size: 2.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+            .subtitle { color: #666; font-size: 1rem; }
+            .grid { display: grid; gap: 24px; }
+            @media (min-width: 900px) { .grid { grid-template-columns: 320px 1fr; } }
+            .card {
+                background: white; border-radius: 12px; padding: 20px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            }
+            .card h2 {
+                font-size: 1.1rem; font-weight: 600; margin-bottom: 16px;
+                display: flex; align-items: center; gap: 8px;
+            }
+            .icon { width: 20px; height: 20px; }
+            .dropzone {
+                border: 2px dashed #ddd; border-radius: 8px; padding: 24px 16px;
+                text-align: center; cursor: pointer; transition: border-color 0.2s;
+            }
+            .dropzone:hover, .dropzone.dragover { border-color: #10b981; }
+            .dropzone p { color: #666; font-size: 0.9rem; }
+            .dropzone .hint { color: #999; font-size: 0.8rem; margin-top: 4px; }
+            .btn {
+                width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+                font-size: 0.95rem; font-weight: 500; cursor: pointer;
+                transition: all 0.2s; margin-top: 12px;
+            }
+            .btn-primary { background: #10b981; color: white; }
+            .btn-primary:hover:not(:disabled) { background: #059669; }
+            .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+            .btn-record {
+                background: #ef4444; color: white; margin-top: 8px;
+            }
+            .btn-record:hover:not(:disabled) { background: #dc2626; }
+            .btn-record.recording { animation: pulse-rec 1s infinite; }
+            @keyframes pulse-rec {
+                0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+            }
+            .status { margin-top: 12px; text-align: center; font-size: 0.85rem; color: #666; }
+            .progress { margin-top: 12px; display: none; }
+            .progress-bar { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+            .progress-fill {
+                height: 100%; background: linear-gradient(90deg, #10b981, #34d399);
+                width: 0%; transition: width 0.3s;
+            }
+            .progress-text {
+                font-size: 0.75rem; color: #999; margin-top: 4px;
+                display: flex; justify-content: space-between;
+            }
+            .model-status {
+                display: flex; align-items: center; gap: 8px;
+                padding: 10px 12px; border-radius: 8px; margin-bottom: 16px;
+            }
+            .model-status.loaded { background: #f0fdf4; }
+            .model-status.loading { background: #fef3c7; }
+            .model-status.error { background: #fef2f2; }
+            .dot {
+                width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+            }
+            .model-status.loading .dot {
+                background: #f59e0b; animation: pulse 1s infinite;
+            }
+            .model-status.error .dot { background: #ef4444; }
+            @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+            .model-select {
+                padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px;
+                font-size: 0.85rem; background: white; color: #333;
+                cursor: pointer; outline: none;
+            }
+            .model-select:focus { border-color: #10b981; }
+            .controls-bar {
+                display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+                margin-bottom: 16px; padding: 12px 16px; background: #f1f5f9;
+                border-radius: 8px;
+            }
+            .control-group { display: flex; align-items: center; gap: 8px; }
+            .control-group label {
+                font-size: 0.85rem; color: #666; font-weight: 500; white-space: nowrap;
+            }
+            .canvas-wrap {
+                background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;
+                overflow: hidden; min-height: 200px; display: flex;
+                flex-direction: column; padding: 8px;
+            }
+            .waveform-section { margin-bottom: 12px; }
+            .waveform-section:last-child { margin-bottom: 0; }
+            .waveform-label {
+                font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+                letter-spacing: 0.05em; color: #999; margin-bottom: 4px;
+            }
+            .waveform-canvas {
+                width: 100%; height: 80px; border-radius: 6px; background: white;
+                border: 1px solid #e2e8f0;
+            }
+            .canvas-placeholder {
+                color: #aaa; font-size: 0.9rem; text-align: center; padding: 48px;
+            }
+            .canvas-placeholder svg {
+                width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5;
+            }
+            audio { width: 100%; height: 36px; margin-top: 6px; outline: none; }
+            .result-info {
+                margin-top: 12px; padding: 12px; background: #f0fdf4;
+                border-radius: 8px; font-size: 0.85rem; color: #166534;
+            }
+            .result-info.error { background: #fef2f2; color: #991b1b; }
+            .download-btn {
+                display: inline-block; margin-top: 12px; padding: 8px 16px;
+                background: #10b981; color: white; border-radius: 6px;
+                text-decoration: none; font-size: 0.85rem; cursor: pointer;
+            }
+            .download-btn:hover { background: #059669; }
+            .sample-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+            .sample-item {
+                padding: 8px 12px; border-radius: 6px; cursor: pointer;
+                transition: background 0.2s; font-size: 0.85rem; color: #555;
+                display: flex; align-items: center; gap: 8px;
+                background: #f8f9fa; border: 1px solid #e2e8f0;
+            }
+            .sample-item:hover { background: #f0fdf4; border-color: #10b981; }
+            .sample-item .sample-icon { font-size: 1.1rem; }
+            .hidden { display: none !important; }
+            footer {
+                text-align: center; margin-top: 32px; color: #999; font-size: 0.85rem;
+            }
+            footer a { color: #10b981; text-decoration: none; }
+            footer a:hover { text-decoration: underline; }
+            .audio-info {
+                margin-top: 8px; font-size: 0.78rem; color: #999; text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>TimbreShift</h1>
+                <p class="subtitle">Neural Timbre Transfer — change instrument timbre in the browser</p>
+            </header>
+
+            <div class="grid">
+                <div class="sidebar">
+                    <div class="card">
+                        <div id="modelStatus" class="model-status loading">
+                            <span class="dot"></span>
+                            <span id="modelStatusText">Loading model...</span>
+                        </div>
+
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path>
+                            </svg>
+                            Upload Audio
+                        </h2>
+
+                        <div id="dropZone" class="dropzone">
+                            <input type="file" id="audioInput" accept="audio/*" hidden />
+                            <p>Drop audio here or click</p>
+                            <p class="hint">WAV, MP3, OGG, FLAC</p>
+                        </div>
+                        <div id="audioInfo" class="audio-info hidden"></div>
+
+                        <button id="recordBtn" class="btn btn-record">🎤 Record from Mic</button>
+                        <button id="transformBtn" class="btn btn-primary" disabled>Transform Timbre</button>
+
+                        <div id="status" class="status"></div>
+                        <div id="progress" class="progress">
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progressLabel">Loading...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px">
+                        <h2>
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                            </svg>
+                            Sample Audio
+                        </h2>
+                        <div id="sampleGallery" class="sample-grid"></div>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <div class="card">
+                        <h2 style="margin-bottom: 16px">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path>
+                            </svg>
+                            Timbre Transfer Result
+                        </h2>
+
+                        <div class="controls-bar">
+                            <div class="control-group">
+                                <label>Target Instrument:</label>
+                                <select id="modelSelect" class="model-select">
+                                    <option value="ddsp_violin.onnx">Violin</option>
+                                    <option value="ddsp_solo_flute.onnx">Flute</option>
+                                    <option value="ddsp_solo_flute2.onnx">Flute 2</option>
+                                    <option value="ddsp_solo_trumpet.onnx">Trumpet</option>
+                                    <option value="ddsp_solo_tenor_saxophone.onnx">Tenor Saxophone</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="canvas-wrap">
+                            <div id="canvasPlaceholder" class="canvas-placeholder">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path>
+                                </svg>
+                                <p>Upload or record audio, then click "Transform Timbre"</p>
+                            </div>
+                            <div id="waveformArea" class="hidden">
+                                <div class="waveform-section">
+                                    <div class="waveform-label">Original</div>
+                                    <canvas id="origCanvas" class="waveform-canvas"></canvas>
+                                    <audio id="origAudio" controls></audio>
+                                </div>
+                                <div class="waveform-section">
+                                    <div class="waveform-label">Transformed</div>
+                                    <canvas id="resultCanvas" class="waveform-canvas"></canvas>
+                                    <audio id="resultAudio" controls></audio>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="resultInfo" class="result-info hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>Powered by <a href="https://github.com/magenta/ddsp" target="_blank">DDSP</a> &
+                <a href="https://onnxruntime.ai/" target="_blank">ONNX Runtime Web</a>. All inference runs locally.</p>
+            </footer>
+        </div>
+
+        <script type="module">
+            // ── Constants ──
+            const SAMPLE_RATE = 16000;
+            const HOP_SIZE = 64;
+            const N_HARMONICS = 60;
+            const N_NOISE_BANDS = 65;
+            const F0_RANGE = 127.0;
+            const DB_RANGE = 80.0;
+            const MODEL_BASE = new URL("../PortableModels/onnx_models/ddsp/", location.href).href;
+
+            const SAMPLE_AUDIO = [
+                { name: "Singing Voice", url: "https://upload.wikimedia.org/wikipedia/commons/3/3b/Binaural_recording.ogg" },
+                { name: "Whistling", url: "https://upload.wikimedia.org/wikipedia/commons/e/e9/Whistling.ogg" },
+                { name: "Humming", url: "https://upload.wikimedia.org/wikipedia/commons/2/21/Humming.ogg" },
+            ];
+
+            // ── Inline Web Worker ──
+            const workerCode = `
+                let ortLib = null;
+                let session = null;
+                let loadedModelFile = null;
+
+                async function initOrt() {
+                    if (!ortLib) {
+                        importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js");
+                        ortLib = self.ort;
+                        ortLib.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+                    }
+                }
+
+                async function openModelDB() {
+                    return new Promise((resolve, reject) => {
+                        const req = indexedDB.open('onnx-model-cache', 1);
+                        req.onupgradeneeded = e => e.target.result.createObjectStore('models');
+                        req.onsuccess = e => resolve(e.target.result);
+                        req.onerror = e => reject(e.target.error);
+                    });
+                }
+                async function getCachedModel(key) {
+                    try {
+                        const db = await openModelDB();
+                        return new Promise(resolve => {
+                            const req = db.transaction('models','readonly').objectStore('models').get(key);
+                            req.onsuccess = e => resolve(e.target.result || null);
+                            req.onerror = () => resolve(null);
+                        });
+                    } catch(e) { return null; }
+                }
+                async function cacheModel(key, buffer) {
+                    try {
+                        const db = await openModelDB();
+                        await new Promise(resolve => {
+                            const tx = db.transaction('models','readwrite');
+                            tx.objectStore('models').put(buffer, key);
+                            tx.oncomplete = resolve;
+                            tx.onerror = resolve;
+                        });
+                    } catch(e) {}
+                }
+
+                self.onmessage = async (e) => {
+                    const { type, id } = e.data;
+
+                    if (type === "load") {
+                        try {
+                            self.postMessage({ id, type: "status", text: "Loading ONNX Runtime..." });
+                            await initOrt();
+
+                            const modelFile = e.data.modelFile;
+                            if (session && loadedModelFile === modelFile) {
+                                self.postMessage({ id, type: "loaded" });
+                                return;
+                            }
+                            if (session) { session.release(); session = null; }
+
+                            const modelUrl = e.data.modelBaseUrl + modelFile;
+                            let modelBuffer = await getCachedModel(modelUrl);
+                            if (modelBuffer) {
+                                self.postMessage({ id, type: "status", text: "Loading " + modelFile + " from cache..." });
+                            } else {
+                                self.postMessage({ id, type: "status", text: "Downloading " + modelFile + "..." });
+                                const resp = await fetch(modelUrl);
+                                if (!resp.ok) throw new Error("HTTP " + resp.status + " fetching model");
+                                modelBuffer = await resp.arrayBuffer();
+                                await cacheModel(modelUrl, modelBuffer);
+                            }
+                            session = await ortLib.InferenceSession.create(modelBuffer, {
+                                executionProviders: ["wasm"],
+                                graphOptimizationLevel: "all",
+                            });
+                            loadedModelFile = modelFile;
+                            self.postMessage({ id, type: "loaded" });
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+
+                    if (type === "infer") {
+                        try {
+                            const { ld_scaled, f0_scaled, n_frames } = e.data;
+                            const ldTensor = new ortLib.Tensor("float32", new Float32Array(ld_scaled), [1, n_frames, 1]);
+                            const f0Tensor = new ortLib.Tensor("float32", new Float32Array(f0_scaled), [1, n_frames, 1]);
+
+                            const inputNames = session.inputNames;
+                            const feed = {};
+                            for (const name of inputNames) {
+                                if (name.includes("ld")) feed[name] = ldTensor;
+                                else feed[name] = f0Tensor;
+                            }
+
+                            const results = await session.run(feed);
+                            const outputNames = session.outputNames;
+
+                            let amps, harmonic_distribution, noise_magnitudes;
+                            for (const name of outputNames) {
+                                const d = results[name].data;
+                                if (name.includes("amp")) amps = d;
+                                else if (name.includes("harm")) harmonic_distribution = d;
+                                else if (name.includes("noise")) noise_magnitudes = d;
+                            }
+                            if (!amps) amps = results[outputNames[0]].data;
+                            if (!harmonic_distribution) harmonic_distribution = results[outputNames[1]].data;
+                            if (!noise_magnitudes) noise_magnitudes = results[outputNames[2]].data;
+
+                            self.postMessage(
+                                { id, type: "result", amps, harmonic_distribution, noise_magnitudes },
+                                [amps.buffer, harmonic_distribution.buffer, noise_magnitudes.buffer]
+                            );
+                        } catch (err) {
+                            self.postMessage({ id, type: "error", message: err.message });
+                        }
+                        return;
+                    }
+                };
+            `;
+            const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: "application/javascript" })));
+
+            let msgId = 0;
+            const pending = new Map();
+            function workerCall(msg, transfer) {
+                return new Promise((resolve, reject) => {
+                    const id = ++msgId;
+                    pending.set(id, { resolve, reject });
+                    worker.postMessage({ ...msg, id }, transfer || []);
+                });
+            }
+            worker.onmessage = (e) => {
+                const { id, type } = e.data;
+                if (type === "status") { modelStatusText.textContent = e.data.text; return; }
+                const p = pending.get(id);
+                if (!p) return;
+                pending.delete(id);
+                if (type === "error") p.reject(new Error(e.data.message));
+                else p.resolve(e.data);
+            };
+
+            // ── DOM refs ──
+            let modelReady = false;
+            let currentAudioUrl = null;
+            let currentAudioData = null; // Float32Array at 16kHz
+
+            const dropZone = document.getElementById("dropZone");
+            const audioInput = document.getElementById("audioInput");
+            const audioInfo = document.getElementById("audioInfo");
+            const recordBtn = document.getElementById("recordBtn");
+            const transformBtn = document.getElementById("transformBtn");
+            const status = document.getElementById("status");
+            const progress = document.getElementById("progress");
+            const progressFill = document.getElementById("progressFill");
+            const progressLabel = document.getElementById("progressLabel");
+            const progressPercent = document.getElementById("progressPercent");
+            const modelStatus = document.getElementById("modelStatus");
+            const modelStatusText = document.getElementById("modelStatusText");
+            const modelSelect = document.getElementById("modelSelect");
+            const sampleGallery = document.getElementById("sampleGallery");
+            const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+            const waveformArea = document.getElementById("waveformArea");
+            const origCanvas = document.getElementById("origCanvas");
+            const resultCanvas = document.getElementById("resultCanvas");
+            const origAudio = document.getElementById("origAudio");
+            const resultAudio = document.getElementById("resultAudio");
+            const resultInfo = document.getElementById("resultInfo");
+
+            // ── Sample gallery ──
+            sampleGallery.innerHTML = SAMPLE_AUDIO.map((s, i) => `
+                <div class="sample-item" data-index="${i}">
+                    <span class="sample-icon">🎵</span> ${s.name}
+                </div>
+            `).join("");
+
+            // ── Model loading ──
+            async function loadModel() {
+                try {
+                    modelReady = false;
+                    transformBtn.disabled = true;
+                    progress.style.display = "block";
+                    progressLabel.textContent = "Loading model...";
+                    modelStatus.className = "model-status loading";
+                    await workerCall({ type: "load", modelFile: modelSelect.value, modelBaseUrl: MODEL_BASE });
+                    modelReady = true;
+                    modelStatus.className = "model-status loaded";
+                    modelStatusText.textContent = "Model ready";
+                    transformBtn.disabled = !currentAudioData;
+                    progress.style.display = "none";
+                } catch (e) {
+                    console.error("Model load error:", e);
+                    modelStatus.className = "model-status error";
+                    modelStatusText.textContent = "Failed to load model";
+                    progress.style.display = "none";
+                }
+            }
+            loadModel();
+            modelSelect.addEventListener("change", () => loadModel());
+
+            // ── Audio decode to 16kHz mono ──
+            async function decodeAudioUrl(url) {
+                const resp = await fetch(url);
+                const buf = await resp.arrayBuffer();
+                const audioCtx = new AudioContext();
+                const decoded = await audioCtx.decodeAudioData(buf);
+                const numSamples = Math.ceil(decoded.duration * SAMPLE_RATE);
+                const offCtx = new OfflineAudioContext(1, numSamples, SAMPLE_RATE);
+                const src = offCtx.createBufferSource();
+                src.buffer = decoded;
+                src.connect(offCtx.destination);
+                src.start(0);
+                const resampled = await offCtx.startRendering();
+                await audioCtx.close();
+                return resampled.getChannelData(0);
+            }
+
+            async function decodeAudioBlob(blob) {
+                const buf = await blob.arrayBuffer();
+                const audioCtx = new AudioContext();
+                const decoded = await audioCtx.decodeAudioData(buf);
+                const numSamples = Math.ceil(decoded.duration * SAMPLE_RATE);
+                const offCtx = new OfflineAudioContext(1, numSamples, SAMPLE_RATE);
+                const src = offCtx.createBufferSource();
+                src.buffer = decoded;
+                src.connect(offCtx.destination);
+                src.start(0);
+                const resampled = await offCtx.startRendering();
+                await audioCtx.close();
+                return resampled.getChannelData(0);
+            }
+
+            // ── File upload ──
+            dropZone.addEventListener("click", () => audioInput.click());
+            dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+            dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("dragover");
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("audio/")) handleAudioFile(file);
+            });
+            audioInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) handleAudioFile(file);
+            });
+
+            async function handleAudioFile(file) {
+                status.textContent = "Decoding audio...";
+                try {
+                    const blob = file;
+                    currentAudioUrl = URL.createObjectURL(blob);
+                    currentAudioData = await decodeAudioBlob(blob);
+                    const dur = (currentAudioData.length / SAMPLE_RATE).toFixed(1);
+                    audioInfo.textContent = `${file.name} — ${dur}s at 16kHz mono`;
+                    audioInfo.classList.remove("hidden");
+                    transformBtn.disabled = !modelReady;
+                    status.textContent = "Audio loaded. Click Transform.";
+                    resultInfo.classList.add("hidden");
+                } catch (err) {
+                    status.textContent = "Error: " + err.message;
+                }
+            }
+
+            // ── Sample gallery click ──
+            sampleGallery.addEventListener("click", async (e) => {
+                const item = e.target.closest(".sample-item");
+                if (!item) return;
+                const idx = item.dataset.index;
+                const sample = SAMPLE_AUDIO[idx];
+                status.textContent = `Loading sample: ${sample.name}...`;
+                try {
+                    currentAudioUrl = sample.url;
+                    currentAudioData = await decodeAudioUrl(sample.url);
+                    const dur = (currentAudioData.length / SAMPLE_RATE).toFixed(1);
+                    audioInfo.textContent = `${sample.name} — ${dur}s at 16kHz mono`;
+                    audioInfo.classList.remove("hidden");
+                    transformBtn.disabled = !modelReady;
+                    status.textContent = "Sample loaded. Click Transform.";
+                    resultInfo.classList.add("hidden");
+                } catch (err) {
+                    status.textContent = "Error loading sample: " + err.message;
+                }
+            });
+
+            // ── Microphone recording ──
+            let mediaRecorder = null;
+            let recordedChunks = [];
+
+            recordBtn.addEventListener("click", async () => {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                    recordBtn.textContent = "🎤 Record from Mic";
+                    recordBtn.classList.remove("recording");
+                    return;
+                }
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    recordedChunks = [];
+                    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(recordedChunks, { type: "audio/webm" });
+                        status.textContent = "Decoding recording...";
+                        try {
+                            currentAudioUrl = URL.createObjectURL(blob);
+                            currentAudioData = await decodeAudioBlob(blob);
+                            const dur = (currentAudioData.length / SAMPLE_RATE).toFixed(1);
+                            audioInfo.textContent = `Recording — ${dur}s at 16kHz mono`;
+                            audioInfo.classList.remove("hidden");
+                            transformBtn.disabled = !modelReady;
+                            status.textContent = "Recording loaded. Click Transform.";
+                        } catch (err) {
+                            status.textContent = "Error: " + err.message;
+                        }
+                        stream.getTracks().forEach((t) => t.stop());
+                    };
+                    mediaRecorder.start();
+                    recordBtn.textContent = "⏹ Stop Recording";
+                    recordBtn.classList.add("recording");
+                    status.textContent = "Recording...";
+                } catch (err) {
+                    status.textContent = "Mic error: " + err.message;
+                }
+            });
+
+            // ── Feature Extraction ──
+            function detectF0(audio, sr, hop) {
+                const windowSize = 1024;
+                const threshold = 0.15;
+                const nFrames = Math.max(1, Math.floor((audio.length - windowSize) / hop) + 1);
+                const f0 = new Float32Array(nFrames);
+                const halfW = Math.floor(windowSize / 2);
+
+                for (let frame = 0; frame < nFrames; frame++) {
+                    const start = frame * hop;
+                    if (start + windowSize > audio.length) break;
+
+                    // Difference function
+                    const d = new Float32Array(halfW);
+                    for (let tau = 1; tau < halfW; tau++) {
+                        let sum = 0;
+                        for (let j = 0; j < halfW; j++) {
+                            const diff = audio[start + j] - audio[start + j + tau];
+                            sum += diff * diff;
+                        }
+                        d[tau] = sum;
+                    }
+
+                    // Cumulative mean normalized difference
+                    const dn = new Float32Array(halfW);
+                    dn[0] = 1;
+                    let running = 0;
+                    for (let tau = 1; tau < halfW; tau++) {
+                        running += d[tau];
+                        dn[tau] = running > 0 ? (d[tau] * tau) / running : 1;
+                    }
+
+                    // Absolute threshold
+                    let tauEst = -1;
+                    for (let tau = 2; tau < halfW; tau++) {
+                        if (dn[tau] < threshold) {
+                            while (tau + 1 < halfW && dn[tau + 1] < dn[tau]) tau++;
+                            tauEst = tau;
+                            break;
+                        }
+                    }
+
+                    // Parabolic interpolation
+                    if (tauEst > 1 && tauEst < halfW - 1) {
+                        const s0 = dn[tauEst - 1], s1 = dn[tauEst], s2 = dn[tauEst + 1];
+                        const denom = 2 * (2 * s1 - s2 - s0);
+                        if (Math.abs(denom) > 1e-10) {
+                            const adj = (s2 - s0) / denom;
+                            if (Math.abs(adj) < 1) tauEst += adj;
+                        }
+                    }
+
+                    f0[frame] = tauEst > 0 ? sr / tauEst : 0;
+                }
+                return f0;
+            }
+
+            function computeLoudness(audio, sr, hop) {
+                const frameSize = 2048;
+                const nFrames = Math.max(1, Math.floor((audio.length - frameSize) / hop) + 1);
+                const loudness = new Float32Array(nFrames);
+
+                for (let frame = 0; frame < nFrames; frame++) {
+                    const start = frame * hop;
+                    const end = Math.min(start + frameSize, audio.length);
+                    let power = 0;
+                    for (let i = start; i < end; i++) power += audio[i] * audio[i];
+                    power /= (end - start);
+                    loudness[frame] = 10 * Math.log10(Math.max(power, 1e-10));
+                }
+                return loudness;
+            }
+
+            // ── Scaling ──
+            function hzToMidi(hz) {
+                return hz > 0 ? 12 * Math.log2(hz / 440) + 69 : 0;
+            }
+            function scaleF0(f0Hz) {
+                const s = new Float32Array(f0Hz.length);
+                for (let i = 0; i < f0Hz.length; i++) s[i] = hzToMidi(f0Hz[i]) / F0_RANGE;
+                return s;
+            }
+            function scaleLoudness(ld) {
+                const s = new Float32Array(ld.length);
+                for (let i = 0; i < ld.length; i++) s[i] = ld[i] / DB_RANGE + 1.0;
+                return s;
+            }
+
+            // ── Post-processing ──
+            function expSigmoid(x, exponent = 10.0, maxValue = 2.0, threshold = 1e-7) {
+                const sig = 1 / (1 + Math.exp(-x));
+                return maxValue * Math.pow(sig, Math.log(exponent)) + threshold;
+            }
+
+            function processOutputs(ampsRaw, hdRaw, noiseRaw, f0Hz, nFrames) {
+                const amps = new Float32Array(nFrames);
+                const hd = new Float32Array(nFrames * N_HARMONICS);
+                const noise = new Float32Array(nFrames * N_NOISE_BANDS);
+                const nyquist = SAMPLE_RATE / 2;
+
+                for (let i = 0; i < nFrames; i++) {
+                    amps[i] = expSigmoid(ampsRaw[i]);
+
+                    let hdSum = 0;
+                    for (let k = 0; k < N_HARMONICS; k++) {
+                        const idx = i * N_HARMONICS + k;
+                        let val = expSigmoid(hdRaw[idx]);
+                        if (f0Hz[i] * (k + 1) >= nyquist) val = 0;
+                        hd[idx] = val;
+                        hdSum += val;
+                    }
+                    if (hdSum > 0) {
+                        for (let k = 0; k < N_HARMONICS; k++) hd[i * N_HARMONICS + k] /= hdSum;
+                    }
+
+                    for (let k = 0; k < N_NOISE_BANDS; k++) {
+                        noise[i * N_NOISE_BANDS + k] = expSigmoid(noiseRaw[i * N_NOISE_BANDS + k] - 5.0);
+                    }
+                }
+                return { amps, hd, noise };
+            }
+
+            // ── Synthesis ──
+            function synthesizeHarmonics(amps, hd, f0Hz, nFrames, nSamples) {
+                const audio = new Float32Array(nSamples);
+                const spf = nSamples / nFrames;
+
+                for (let k = 0; k < N_HARMONICS; k++) {
+                    let phase = 0;
+                    for (let i = 0; i < nSamples; i++) {
+                        const ff = i / spf;
+                        const f0 = Math.min(Math.floor(ff), nFrames - 1);
+                        const f1 = Math.min(f0 + 1, nFrames - 1);
+                        const frac = ff - f0;
+
+                        const amp = amps[f0] * (1 - frac) + amps[f1] * frac;
+                        const h = hd[f0 * N_HARMONICS + k] * (1 - frac) + hd[f1 * N_HARMONICS + k] * frac;
+                        const freq = ((f0Hz[f0] * (1 - frac)) + (f0Hz[f1] * frac)) * (k + 1);
+
+                        phase += 2 * Math.PI * freq / SAMPLE_RATE;
+                        audio[i] += amp * h * Math.sin(phase);
+                    }
+                }
+                return audio;
+            }
+
+            function synthesizeNoise(noiseMag, nFrames, nSamples) {
+                const audio = new Float32Array(nSamples);
+                const frameSize = Math.ceil(nSamples / nFrames);
+
+                for (let f = 0; f < nFrames; f++) {
+                    const start = f * frameSize;
+                    const end = Math.min(start + frameSize, nSamples);
+
+                    // Average magnitude for this frame
+                    let avgMag = 0;
+                    for (let k = 0; k < N_NOISE_BANDS; k++) {
+                        avgMag += noiseMag[f * N_NOISE_BANDS + k];
+                    }
+                    avgMag /= N_NOISE_BANDS;
+
+                    for (let i = start; i < end; i++) {
+                        audio[i] += (Math.random() * 2 - 1) * avgMag;
+                    }
+                }
+                return audio;
+            }
+
+            // ── Waveform drawing ──
+            function drawWaveform(canvas, audio, color = "#10b981") {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                const ctx = canvas.getContext("2d");
+                ctx.scale(dpr, dpr);
+                const w = rect.width, h = rect.height;
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = "#fafafa";
+                ctx.fillRect(0, 0, w, h);
+
+                // Center line
+                ctx.strokeStyle = "#e2e8f0";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, h / 2);
+                ctx.lineTo(w, h / 2);
+                ctx.stroke();
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const step = Math.max(1, Math.ceil(audio.length / w));
+                for (let x = 0; x < w; x++) {
+                    const s = x * step;
+                    let min = 1, max = -1;
+                    for (let j = 0; j < step && s + j < audio.length; j++) {
+                        const v = audio[s + j];
+                        if (v < min) min = v;
+                        if (v > max) max = v;
+                    }
+                    ctx.moveTo(x, (1 - max) * h / 2);
+                    ctx.lineTo(x, (1 - min) * h / 2);
+                }
+                ctx.stroke();
+            }
+
+            // ── WAV encoding ──
+            function encodeWav(samples, sr) {
+                const buf = new ArrayBuffer(44 + samples.length * 2);
+                const v = new DataView(buf);
+                const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+                ws(0, "RIFF");
+                v.setUint32(4, 36 + samples.length * 2, true);
+                ws(8, "WAVE"); ws(12, "fmt ");
+                v.setUint32(16, 16, true);
+                v.setUint16(20, 1, true);
+                v.setUint16(22, 1, true);
+                v.setUint32(24, sr, true);
+                v.setUint32(28, sr * 2, true);
+                v.setUint16(32, 2, true);
+                v.setUint16(34, 16, true);
+                ws(36, "data");
+                v.setUint32(40, samples.length * 2, true);
+                for (let i = 0; i < samples.length; i++) {
+                    const s = Math.max(-1, Math.min(1, samples[i]));
+                    v.setInt16(44 + i * 2, s * 0x7fff, true);
+                }
+                return new Blob([buf], { type: "audio/wav" });
+            }
+
+            // ── Main processing ──
+            transformBtn.addEventListener("click", async () => {
+                if (!currentAudioData || !modelReady) return;
+                transformBtn.disabled = true;
+                await processAudio();
+                transformBtn.disabled = false;
+            });
+
+            async function processAudio() {
+                const t0 = performance.now();
+                canvasPlaceholder.style.display = "none";
+                waveformArea.classList.remove("hidden");
+
+                try {
+                    // Truncate to 10s max
+                    const maxSamples = SAMPLE_RATE * 10;
+                    const audio = currentAudioData.length > maxSamples
+                        ? currentAudioData.subarray(0, maxSamples) : currentAudioData;
+
+                    // Draw original waveform
+                    drawWaveform(origCanvas, audio, "#10b981");
+                    const origBlob = encodeWav(audio, SAMPLE_RATE);
+                    origAudio.src = URL.createObjectURL(origBlob);
+
+                    // Extract features
+                    status.textContent = "Extracting pitch & loudness...";
+                    progress.style.display = "block";
+                    progressFill.style.width = "10%";
+                    progressPercent.textContent = "10%";
+
+                    await new Promise(r => setTimeout(r, 0)); // yield for UI
+
+                    const f0Hz = detectF0(audio, SAMPLE_RATE, HOP_SIZE);
+                    const loudnessDb = computeLoudness(audio, SAMPLE_RATE, HOP_SIZE);
+                    const nFrames = Math.min(f0Hz.length, loudnessDb.length);
+
+                    progressFill.style.width = "30%";
+                    progressPercent.textContent = "30%";
+
+                    // Scale
+                    const f0Scaled = scaleF0(f0Hz.subarray(0, nFrames));
+                    const ldScaled = scaleLoudness(loudnessDb.subarray(0, nFrames));
+
+                    // Run decoder
+                    status.textContent = "Running neural decoder...";
+                    progressFill.style.width = "40%";
+                    progressPercent.textContent = "40%";
+
+                    const result = await workerCall({
+                        type: "infer",
+                        ld_scaled: ldScaled,
+                        f0_scaled: f0Scaled,
+                        n_frames: nFrames,
+                    }, [ldScaled.buffer, f0Scaled.buffer]);
+
+                    // Post-process
+                    status.textContent = "Processing decoder outputs...";
+                    progressFill.style.width = "60%";
+                    progressPercent.textContent = "60%";
+
+                    const { amps, hd, noise } = processOutputs(
+                        new Float32Array(result.amps),
+                        new Float32Array(result.harmonic_distribution),
+                        new Float32Array(result.noise_magnitudes),
+                        f0Hz, nFrames
+                    );
+
+                    // Synthesize
+                    status.textContent = "Synthesizing audio...";
+                    progressFill.style.width = "70%";
+                    progressPercent.textContent = "70%";
+                    await new Promise(r => setTimeout(r, 0));
+
+                    const nSamples = nFrames * HOP_SIZE;
+                    const harmonicAudio = synthesizeHarmonics(amps, hd, f0Hz, nFrames, nSamples);
+
+                    progressFill.style.width = "85%";
+                    progressPercent.textContent = "85%";
+
+                    const noiseAudio = synthesizeNoise(noise, nFrames, nSamples);
+
+                    // Mix & normalize
+                    const output = new Float32Array(nSamples);
+                    let maxAbs = 0;
+                    for (let i = 0; i < nSamples; i++) {
+                        output[i] = harmonicAudio[i] + noiseAudio[i];
+                        const a = Math.abs(output[i]);
+                        if (a > maxAbs) maxAbs = a;
+                    }
+                    if (maxAbs > 0) {
+                        const gain = 0.95 / maxAbs;
+                        for (let i = 0; i < nSamples; i++) output[i] *= gain;
+                    }
+
+                    // Display result
+                    drawWaveform(resultCanvas, output, "#6366f1");
+                    const wavBlob = encodeWav(output, SAMPLE_RATE);
+                    resultAudio.src = URL.createObjectURL(wavBlob);
+
+                    progressFill.style.width = "100%";
+                    progressPercent.textContent = "100%";
+
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    const dur = (nSamples / SAMPLE_RATE).toFixed(1);
+                    resultInfo.classList.remove("hidden", "error");
+                    resultInfo.innerHTML = `<strong>Success!</strong> Transformed ${dur}s audio (${nFrames} frames, ${N_HARMONICS} harmonics) in ${elapsed}s.
+                        <a class="download-btn" id="downloadBtn">⬇ Download WAV</a>`;
+                    document.getElementById("downloadBtn").addEventListener("click", () => {
+                        const link = document.createElement("a");
+                        link.download = "timbreshift_output.wav";
+                        link.href = URL.createObjectURL(wavBlob);
+                        link.click();
+                    });
+
+                    status.textContent = `Transform complete in ${elapsed}s`;
+                    progress.style.display = "none";
+                } catch (error) {
+                    status.textContent = "Error: " + error.message;
+                    console.error("Processing error:", error);
+                    progress.style.display = "none";
+                    resultInfo.classList.remove("hidden");
+                    resultInfo.classList.add("error");
+                    resultInfo.textContent = "Error: " + error.message;
+                }
+            }
+        </script>
+    </body>
+</html>

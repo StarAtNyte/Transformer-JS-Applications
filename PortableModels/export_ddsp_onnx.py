@@ -14,7 +14,8 @@ Usage:
     python export_ddsp_onnx.py --model_dir ./trained_models/solo_flute --name flute
 
 Requirements:
-    pip install tensorflow ddsp gin-config tf2onnx onnxruntime
+    pip install tensorflow gin-config scipy tf2onnx onnxruntime
+    (ddsp is imported directly from the cloned repo — no pip install needed)
 """
 
 import argparse
@@ -23,9 +24,61 @@ import os
 import shutil
 import subprocess
 import sys
+import types
 
 import numpy as np
 import tensorflow as tf
+
+# ---------------------------------------------------------------------------
+# Mock unavailable third-party packages that DDSP imports but we don't need
+# for decoder-only export (crepe, librosa, tensorflow_probability, etc.)
+# ---------------------------------------------------------------------------
+class _StubMeta(type):
+    """Metaclass allowing arbitrary chained attribute access on a class."""
+    def __getattr__(cls, name):
+        # Return a new stub *class* so ``Stub.X.Y`` and ``class C(Stub.X):``
+        # both work.
+        return _StubMeta(name, (), {
+            '__init__': lambda self, *a, **kw: None,
+            '__init_subclass__': classmethod(lambda c, **kw: None),
+        })
+
+class _StubBase(metaclass=_StubMeta):
+    def __init__(self, *a, **kw): pass
+    def __init_subclass__(cls, **kw): pass
+
+class _StubModule(types.ModuleType):
+    """Module stub whose every attribute is a sub-stub usable as a base class,
+    supporting unlimited chained lookups like ``mod.A.B.C``."""
+    def __init__(self, name='_stub'):
+        super().__init__(name)
+        self.__path__ = []
+        self.__file__ = '<mock>'
+    def __getattr__(self, name):
+        # Return a stub class built with _StubMeta so further chaining works.
+        return _StubMeta(name, (_StubBase,), {})
+    def __call__(self, *a, **kw):
+        return self
+
+def _mock(name):
+    if name not in sys.modules:
+        sys.modules[name] = _StubModule(name)
+
+for _m in [
+    'crepe',
+    'librosa', 'librosa.core', 'librosa.core.audio',
+    'tensorflow_probability', 'tensorflow_probability.python',
+    'tensorflow_probability.python.distributions',
+    'tensorflow_probability.distributions',
+    'tensorflow_datasets',
+    'mir_eval', 'mir_eval.melody',
+    'note_seq', 'note_seq.sequences_lib', 'note_seq.audio_io',
+    'matplotlib', 'matplotlib.pyplot', 'matplotlib.gridspec',
+    'matplotlib.patches', 'matplotlib.ticker',
+    'cloudml_hypertune', 'hypertune',
+    'google.cloud', 'google.cloud.storage',
+]:
+    _mock(_m)
 
 DDSP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ddsp')
 sys.path.insert(0, DDSP_DIR)
@@ -100,15 +153,48 @@ def _verify(onnx_path, n_frames):
 
 def export_ddsp(model_dir, name, output_dir, length_seconds):
     """Export the DDSP decoder from a checkpoint directory to ONNX."""
+    import gin
     from ddsp.training import inference
+
+    # Hide the GPU so TF uses standard CPU GRU ops instead of CudnnRNNV3.
+    # CudnnRNNV3 is not a standard ONNX operator, so GPU-traced graphs fail
+    # ONNX conversion. CPU ops (GRUBlockCell / standard GRU) convert cleanly.
+    import os as _os
+    _os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
     print(f"\n{'=' * 60}")
     print(f"Exporting: DDSP decoder — {name}")
     print(f"{'=' * 60}")
 
     # ---- Step 1: Load the full autoencoder via DDSP inference API ----
+    # Subclass that fixes two Keras 3.x incompatibilities:
+    # 1. configure_gin: disables loudness recomputation (build_network passes
+    #    no 'audio' key, so F0LoudnessPreprocessor would crash by default).
+    # 2. build_network: calls the decoder directly with 3D tensors instead of
+    #    routing through the full autoencoder pipeline. The parent's version
+    #    passes 1D tensors [T] which result in 2D [T, features] input to the
+    #    GRU — invalid in Keras 3.x which requires exactly 3D [B, T, features].
+    class _InferenceNoComputeLoudness(inference.AutoencoderInference):
+        def configure_gin(self, ckpt):
+            super().configure_gin(ckpt)
+            with gin.unlock_config():
+                gin.parse_config('F0LoudnessPreprocessor.compute_loudness = False')
+
+        def build_network(self):
+            # Keras 3 auto-traces DictLayer (which has no build()) and marks
+            # it "built" before its sublayers are actually built. Pre-build
+            # the GRU directly so GRUCell.kernel exists when call() runs.
+            ch = gin.query_parameter('RnnFcDecoder.ch')
+            n_stacks = len(gin.query_parameter('RnnFcDecoder.input_keys'))
+            self.decoder.rnn.rnn(tf.zeros([1, self.n_frames, n_stacks * ch]))
+
+            dummy_ld = tf.zeros([1, self.n_frames, 1])
+            dummy_f0 = tf.zeros([1, self.n_frames, 1])
+            _ = self.decoder(dummy_ld, dummy_f0)
+            print(f'  Decoder built: input shape [1, {self.n_frames}, 1]')
+
     print(f"  Loading model from {model_dir}...")
-    model = inference.AutoencoderInference(
+    model = _InferenceNoComputeLoudness(
         ckpt=model_dir,
         length_seconds=length_seconds,
         remove_reverb=True,
@@ -144,7 +230,24 @@ def export_ddsp(model_dir, name, output_dir, length_seconds):
     saved_model_dir = os.path.join(output_dir, f'_tmp_savedmodel_{name}')
     os.makedirs(saved_model_dir, exist_ok=True)
     print(f"  Saving TF SavedModel to {saved_model_dir}...")
-    tf.saved_model.save(wrapper, saved_model_dir)
+
+    # Python 3.13 + wrapt: typing.Protocol.__instancecheck__ calls
+    # inspect.getattr_static which uses object.__getattribute__(obj,'__dict__')
+    # — this raises TypeError on wrapt.ObjectProxy subclasses (_DictWrapper).
+    # Patch is_tf_type to swallow that TypeError so SavedModel serialisation
+    # can safely skip over non-tensor trackable nodes.
+    import tensorflow.python.framework.tensor_util as _tu
+    _orig_is_tf_type = _tu.is_tf_type
+    def _safe_is_tf_type(x):
+        try:
+            return _orig_is_tf_type(x)
+        except TypeError:
+            return False
+    _tu.is_tf_type = _safe_is_tf_type
+    try:
+        tf.saved_model.save(wrapper, saved_model_dir)
+    finally:
+        _tu.is_tf_type = _orig_is_tf_type
 
     # ---- Step 4: Convert SavedModel → ONNX via tf2onnx ----
     abs_out = os.path.join(output_dir, 'ddsp')
@@ -152,16 +255,33 @@ def export_ddsp(model_dir, name, output_dir, length_seconds):
     onnx_path = os.path.join(abs_out, f'{name}.onnx')
 
     print(f"  Converting to ONNX at {onnx_path}...")
-    cmd = [
-        sys.executable, '-m', 'tf2onnx.convert',
-        '--saved-model', saved_model_dir,
-        '--output', onnx_path,
-        '--opset', '18',
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"  ❌ tf2onnx conversion failed:\n{result.stderr}")
-        return None
+    # tf2onnx <= 1.16.1 uses np.cast which was removed in NumPy 2.0.
+    # Patch it in-process before importing tf2onnx so the constant-fold
+    # rewriter still finds the attribute it expects.
+    import numpy as _np
+    if not hasattr(_np, 'cast'):
+        class _CastCompat:
+            def __getitem__(self, dtype):
+                return lambda arr: _np.asarray(arr, dtype=dtype)
+        _np.cast = _CastCompat()
+
+    import tf2onnx
+    import tf2onnx.convert as _t2o_convert
+    from tf2onnx import tf_loader
+    graph_def, inputs, outputs = tf_loader.from_saved_model(
+        saved_model_dir,
+        None, None,
+        tag='serve',
+        signatures=['serving_default'],
+    )
+    model_proto, _ = _t2o_convert.from_graph_def(
+        graph_def,
+        name=name,
+        input_names=inputs,
+        output_names=outputs,
+        opset=18,
+        output_path=onnx_path,
+    )
     print("  tf2onnx conversion done.")
 
     # ---- Step 5: Verify with ONNX Runtime ----
