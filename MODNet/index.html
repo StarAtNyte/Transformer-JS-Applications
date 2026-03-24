@@ -764,6 +764,10 @@
             status.textContent = 'Preparing image...';
             canvasActions.classList.add('hidden');
             alphaData = null;
+            estimationSpinner.style.display = 'block';
+            origCanvas.style.display = 'none';
+            matteCanvas.style.display = 'none';
+            canvasPlaceholder.style.display = 'none';
 
             const img = new Image();
             img.crossOrigin = 'anonymous';

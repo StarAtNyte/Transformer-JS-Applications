@@ -347,7 +347,16 @@
       })();
       const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
       if (T.env) T.env.allowLocalModels = false;
+      let device = 'wasm', dtype = 'q8';
+      try {
+        if (navigator.gpu) {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) { device = 'webgpu'; dtype = 'q4'; }
+        }
+      } catch(e) {}
+      setModelStatus('loading', `Loading model (${device.toUpperCase()})...`);
       detector = await T.pipeline('zero-shot-object-detection', 'Xenova/owlvit-base-patch32', {
+        device, dtype,
         progress_callback: (p) => {
           if (p.status === 'progress' && p.progress != null) {
             progressFill.style.width = p.progress + '%';

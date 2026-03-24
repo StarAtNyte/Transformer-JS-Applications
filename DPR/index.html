@@ -249,6 +249,9 @@
                 margin-bottom: 16px;
                 opacity: 0.5;
             }
+            .processing-spinner { display: none; text-align: center; padding: 30px; }
+            .processing-spinner .spin-ring { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 36px; height: 36px; animation: spin-anim 1s linear infinite; margin: 0 auto 12px; }
+            @keyframes spin-anim { to { transform: rotate(360deg); } }
             .light-control {
                 display: flex;
                 flex-direction: column;
@@ -585,6 +588,7 @@
                                     <p class="canvas-label">Original</p>
                                 </div>
                                 <div class="canvas-col">
+                                    <div id="processingSpinner" class="processing-spinner"><div class="spin-ring"></div><p>Relighting...</p></div>
                                     <canvas id="relitCanvas"></canvas>
                                     <p class="canvas-label">Relit</p>
                                 </div>
@@ -685,6 +689,7 @@
                 const originalCanvas =
                     document.getElementById("originalCanvas");
                 const relitCanvas = document.getElementById("relitCanvas");
+                const processingSpinner = document.getElementById("processingSpinner");
                 const lightBall = document.getElementById("lightBall");
                 const lightDot = document.getElementById("lightDot");
                 const downloadActions = document.getElementById("downloadActions");
@@ -979,6 +984,8 @@
                     processing = true;
                     updateRelightBtn();
                     statusEl.textContent = "Processing...";
+                    processingSpinner.style.display = 'block';
+                    relitCanvas.getContext('2d').clearRect(0, 0, relitCanvas.width, relitCanvas.height);
 
                     const res = parseInt(loadedModel);
 
@@ -1099,11 +1106,12 @@
                         }
 
                         relitCtx.putImageData(outData, 0, 0);
-
+                        processingSpinner.style.display = 'none';
                         downloadActions.style.display = "flex";
                         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
                         statusEl.textContent = `Done in ${elapsed}s`;
                     } catch (err) {
+                        processingSpinner.style.display = 'none';
                         console.error("Relight error:", err);
                         statusEl.textContent = "Error: " + err.message;
                     }

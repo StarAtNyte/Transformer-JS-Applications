@@ -763,6 +763,9 @@
             status.textContent = 'Preparing image...';
             canvasActions.classList.add('hidden');
             detectionsList.classList.add('hidden');
+            detectionSpinner.style.display = 'block';
+            detectionCanvas.style.display = 'none';
+            canvasPlaceholder.style.display = 'none';
 
             const img = new Image();
             img.crossOrigin = 'anonymous';

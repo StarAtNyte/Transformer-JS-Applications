@@ -254,6 +254,9 @@
                 margin-bottom: 16px;
                 opacity: 0.5;
             }
+            .processing-spinner { display: none; text-align: center; padding: 30px; }
+            .processing-spinner .spin-ring { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 36px; height: 36px; animation: spin-anim 1s linear infinite; margin: 0 auto 12px; }
+            @keyframes spin-anim { to { transform: rotate(360deg); } }
             .viz-tip {
                 font-size: 0.78rem;
                 color: #888;
@@ -472,6 +475,7 @@
                                     <p class="canvas-dims" id="originalDims"></p>
                                 </div>
                                 <div class="canvas-col">
+                                    <div id="processingSpinner" class="processing-spinner"><div class="spin-ring"></div><p>Processing...</p></div>
                                     <canvas id="outputCanvas"></canvas>
                                     <p class="canvas-label">Demoiréd</p>
                                     <p class="canvas-dims" id="outputDims"></p>
@@ -578,6 +582,7 @@
                 const originalCanvas =
                     document.getElementById("originalCanvas");
                 const outputCanvas = document.getElementById("outputCanvas");
+                const processingSpinner = document.getElementById("processingSpinner");
                 const originalDims = document.getElementById("originalDims");
                 const outputDims = document.getElementById("outputDims");
 
@@ -762,6 +767,8 @@
                     processing = true;
                     updateBtn();
                     statusEl.textContent = "Processing...";
+                    processingSpinner.style.display = 'block';
+                    outputCanvas.getContext('2d').clearRect(0, 0, outputCanvas.width, outputCanvas.height);
 
                     try {
                         const img = new Image();
@@ -840,11 +847,13 @@
                         }
 
                         outCtx.putImageData(outImgData, 0, 0);
+                        processingSpinner.style.display = 'none';
                         outputDims.textContent = `${W} × ${H} px`;
 
                         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
                         statusEl.textContent = `Done in ${elapsed}s`;
                     } catch (err) {
+                        processingSpinner.style.display = 'none';
                         console.error("Process error:", err);
                         statusEl.textContent = "Error: " + err.message;
                     }

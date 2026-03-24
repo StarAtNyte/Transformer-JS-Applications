@@ -913,6 +913,8 @@
             canvasActions.classList.add('hidden');
             liveCanvas.style.display = 'none';
             liveLabel.style.display = 'none';
+            estimationSpinner.style.display = 'block';
+            canvasPlaceholder.style.display = 'none';
 
             const thresholdRatio = parseFloat(thresholdSlider.value);
             const strokeWidth = parseFloat(strokeSlider.value);

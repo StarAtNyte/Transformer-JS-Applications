@@ -68,6 +68,9 @@
             #outputCanvas { display: none; border-radius: 6px; max-width: 100%; height: auto; }
             .canvas-placeholder { color: #aaa; font-size: 0.9rem; text-align: center; padding: 48px; }
             .canvas-placeholder svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+            .processing-spinner { display: none; text-align: center; padding: 30px; }
+            .processing-spinner .spin-ring { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 36px; height: 36px; animation: spin-anim 1s linear infinite; margin: 0 auto 12px; }
+            @keyframes spin-anim { to { transform: rotate(360deg); } }
             .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
             .legend-item {
                 display: flex; align-items: center; gap: 6px; padding: 4px 10px;
@@ -153,6 +156,7 @@
 
                         <div class="canvas-wrap">
                             <canvas id="outputCanvas"></canvas>
+                            <div id="processingSpinner" class="processing-spinner"><div class="spin-ring"></div><p>Segmenting...</p></div>
                             <div id="canvasPlaceholder" class="canvas-placeholder">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -347,6 +351,7 @@
             const outputCanvas = document.getElementById("outputCanvas");
             const ctx = outputCanvas.getContext("2d");
             const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+            const processingSpinner = document.getElementById("processingSpinner");
             const legend = document.getElementById("legend");
             const opacitySlider = document.getElementById("opacitySlider");
             const opacityValue = document.getElementById("opacityValue");
@@ -419,6 +424,9 @@
                 segmentBtn.disabled = true;
                 status.textContent = "Analyzing...";
                 activeLabel = null;
+                processingSpinner.style.display = 'block';
+                outputCanvas.style.display = 'none';
+                canvasPlaceholder.style.display = 'none';
                 try {
                     const t0 = performance.now();
                     const result = await workerCall({ type: "segment", imageUrl: currentImageUrl });
@@ -428,8 +436,8 @@
                     originalImage.onload = () => {
                         outputCanvas.width = originalImage.naturalWidth;
                         outputCanvas.height = originalImage.naturalHeight;
+                        processingSpinner.style.display = 'none';
                         outputCanvas.style.display = "block";
-                        canvasPlaceholder.style.display = "none";
                         drawSegmentation();
                         buildLegend();
                         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
@@ -437,6 +445,7 @@
                     };
                     originalImage.src = currentImageUrl;
                 } catch(err) {
+                    processingSpinner.style.display = 'none';
                     status.textContent = "Error: " + err.message;
                 } finally {
                     segmentBtn.disabled = false;

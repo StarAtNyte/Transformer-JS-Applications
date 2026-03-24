@@ -838,6 +838,7 @@
                 const t0 = performance.now();
                 canvasPlaceholder.style.display = "none";
                 waveformArea.classList.remove("hidden");
+                resultCanvas.getContext("2d").clearRect(0, 0, resultCanvas.width, resultCanvas.height);
 
                 try {
                     // Truncate to 10s max

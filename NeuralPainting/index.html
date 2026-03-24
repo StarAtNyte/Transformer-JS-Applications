@@ -759,6 +759,7 @@
             canvasPlaceholder.style.display = "none";
             sourceCanvas.style.display = "block";
             paintCanvas.style.display = "block";
+            paintCanvas.getContext("2d").clearRect(0, 0, paintCanvas.width, paintCanvas.height);
             progress.style.display = "block";
             statusEl.textContent = "Painting...";
             paintStart = performance.now();

@@ -429,6 +429,10 @@
                 generateBtn.disabled = true;
                 genStatus.textContent = "Synthesizing...";
                 stopAudio();
+                waveCanvas.getContext("2d").clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+                placeholderMsg.style.display = "block";
+                playBtn.disabled = true;
+                downloadBtn.disabled = true;
 
                 try {
                     const t0 = performance.now();

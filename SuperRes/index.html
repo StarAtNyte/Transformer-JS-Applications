@@ -96,9 +96,9 @@
       background: repeating-conic-gradient(#e9ecef 0% 25%, #f8f9fa 0% 50%) 0 0 / 14px 14px;
       border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
       min-height: 280px; display: flex; align-items: center; justify-content: center;
-      padding: 8px; flex-direction: column;
+      flex-direction: column; width: 100%;
     }
-    canvas { display: none; border-radius: 6px; max-width: 100%; height: auto; image-rendering: pixelated; }
+    canvas { display: none; border-radius: 6px; width: 100%; height: auto; image-rendering: pixelated; }
     .canvas-placeholder { color: #aaa; font-size: 0.85rem; text-align: center; padding: 24px; }
     .canvas-placeholder svg { width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.5; }
     .spinning-overlay {
@@ -357,7 +357,16 @@
       })();
       const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
       if (T.env) T.env.allowLocalModels = false;
+      let device = 'wasm', dtype = 'q8';
+      try {
+        if (navigator.gpu) {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) { device = 'webgpu'; dtype = 'q4'; }
+        }
+      } catch(e) {}
+      setModelStatus('loading', `Loading model (${device.toUpperCase()})...`);
       pipe = await T.pipeline('image-to-image', MODEL_ID, {
+        device, dtype,
         progress_callback: (p) => {
           if (p.status === 'progress' && p.progress != null) {
             progressFill.style.width = p.progress + '%';
@@ -449,7 +458,7 @@
     if (!pipe || !currentImgDataURL) return;
     upscaleBtn.disabled = true;
     spinOverlay.classList.add('active');
-    upCanvas.style.display = 'none'; upPlaceholder.style.display = 'none';
+    upCanvas.style.display = 'none';
     statsCard.classList.add('hidden'); canvasActions.classList.add('hidden');
     statusEl.textContent = 'Running Swin2SR…';
     const t0 = performance.now();

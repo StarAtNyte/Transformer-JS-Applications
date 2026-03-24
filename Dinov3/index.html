@@ -926,6 +926,8 @@
                 status.textContent = "Analyzing image...";
                 similarityScores = null;
                 lastHoverData = null;
+                imageCanvas.style.display = "none";
+                canvasPlaceholder.style.display = "flex";
 
                 try {
                     const t0 = performance.now();
@@ -938,6 +940,8 @@
                     });
 
                     similarityScores = result.similarityScores;
+                    canvasPlaceholder.style.display = "none";
+                    imageCanvas.style.display = "block";
                     const numPatches = result.numPatches;
                     const featDim = result.featDim;
 

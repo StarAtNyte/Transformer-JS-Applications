@@ -833,6 +833,10 @@
             transferBtn.disabled = true;
             statusEl.textContent = 'Preparing image...';
             canvasActions.classList.add('hidden');
+            transferSpinner.style.display = 'block';
+            origCanvas.style.display = 'none';
+            styledCanvas.style.display = 'none';
+            canvasPlaceholder.style.display = 'none';
 
             const img = new Image();
             img.crossOrigin = 'anonymous';

@@ -889,6 +889,11 @@
                 parseBtn.disabled = true;
                 status.textContent = "Segmenting face...";
                 activeLabel = null;
+                canvasPlaceholder.style.display = "none";
+                canvasContainer.style.display = "flex";
+                originalCanvas.style.display = "none";
+                segCanvas.style.display = "none";
+                segSpinner.classList.remove("hidden");
 
                 try {
                     originalImage = new Image();
@@ -907,9 +912,6 @@
                     segCanvas.height = h;
                     origCtx.drawImage(originalImage, 0, 0);
 
-                    canvasPlaceholder.style.display = "none";
-                    canvasContainer.style.display = "flex";
-                    segSpinner.classList.remove("hidden");
                     segCtx.clearRect(0, 0, w, h);
 
                     const t0 = performance.now();
@@ -919,6 +921,8 @@
                     });
 
                     segSpinner.classList.add("hidden");
+                    originalCanvas.style.display = 'block';
+                    segCanvas.style.display = 'block';
                     segmentResults = result.results;
                     buildLegend();
                     drawSegmentation();
